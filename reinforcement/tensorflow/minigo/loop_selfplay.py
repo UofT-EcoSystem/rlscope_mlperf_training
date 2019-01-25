@@ -139,6 +139,7 @@ def main_():
       return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
 
 
+    print('NUM_PARALLEL_SELFPLAY = {n}'.format(n=goparams.NUM_PARALLEL_SELFPLAY))
     for i in range(goparams.NUM_PARALLEL_SELFPLAY):
       print('Starting Worker...')
       num_workers += 1

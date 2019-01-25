@@ -15,10 +15,14 @@ echo "STARTING TIMING RUN AT $start_fmt"
 # run benchmark
 
 seed=${1:-1}
+if [ $# -ge 1 ]; then
+    shift 1
+fi
 
 echo "running benchmark with seed $seed"
 # The termination quality is set in params/final.json. See RAEDME.md.
-./run.sh $seed
+set -x
+./run.sh $seed "$@"
 sleep 3
 ret_code=$?; if [[ $ret_code != 0 ]]; then exit $ret_code; fi
 

@@ -25,6 +25,7 @@ import time
 import shutil
 import dual_net
 import preprocessing
+import textwrap
 
 import glob
 
@@ -34,10 +35,14 @@ import logging
 
 import goparams
 import predict_moves
+import glbl
 
 import qmeas
 
 from mlperf_compliance import mlperf_log
+
+from profiler.profilers import Profiler
+from profiler import profilers
 
 # Pull in environment variables. Run `source ./cluster/common` to set these.
 #BUCKET_NAME = os.environ['BUCKET_NAME']
@@ -117,6 +122,24 @@ def main_fn():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    profilers.add_iml_arguments(parser)
+    args = parser.parse_args()
+
+    if args.iml_directory is not None:
+        iml_directory = args.iml_dir
+    else:
+        iml_directory = BASE_DIR
+    profilers.handle_iml_args(output_directory=iml_directory,
+                              parser=parser,
+                              args=args)
+    glbl.init_profiler(
+        directory=iml_directory,
+        args=args,
+    )
+    glbl.prof.set_process_name('loop_init')
+    glbl.prof.start()
+
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
 
@@ -137,4 +160,6 @@ if __name__ == '__main__':
     mlperf_log.minigo_print(key=mlperf_log.RUN_START)
 
     main_fn()
+
+    glbl.prof.stop()
     qmeas.end()

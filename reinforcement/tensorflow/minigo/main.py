@@ -42,6 +42,7 @@ import utils
 
 import qmeas
 import goparams
+import glbl
 
 # How many positions we should aggregate per 'chunk'.
 EXAMPLES_PER_RECORD = goparams.EXAMPLES_PER_RECORD
@@ -88,6 +89,7 @@ def bootstrap(
         working_dir: 'tf.estimator working directory. If not set, defaults to a random tmp dir'=None,
         model_save_path: 'Where to export the first bootstrapped generation'=None):
     qmeas.start_time('bootstrap')
+    glbl.prof.set_operation('bootstrap')
     if working_dir is None:
         with tempfile.TemporaryDirectory() as working_dir:
             _ensure_dir_exists(working_dir)
@@ -99,8 +101,8 @@ def bootstrap(
         _ensure_dir_exists(os.path.dirname(model_save_path))
         dual_net.bootstrap(working_dir)
         dual_net.export_model(working_dir, model_save_path)
+    glbl.prof.end_operation('bootstrap')
     qmeas.stop_time('bootstrap')
-
 
 def train(
         working_dir: 'tf.estimator working directory.',

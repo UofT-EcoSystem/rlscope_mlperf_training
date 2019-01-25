@@ -34,6 +34,7 @@ import features
 import preprocessing
 import symmetries
 import go
+import glbl
 
 # How many positions to look at per generation.
 # Per AGZ, 2048 minibatch * 1k = 2M positions/generation
@@ -54,6 +55,7 @@ class DualNetwork():
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(graph=tf.Graph(), config=config)
+        glbl.prof.set_session(self.sess)
         self.initialize_graph()
 
     def initialize_graph(self):
@@ -280,6 +282,7 @@ def bootstrap(working_dir, **hparams):
     estimator_initial_checkpoint_name = 'model.ckpt-1'
     save_file = os.path.join(working_dir, estimator_initial_checkpoint_name)
     sess = tf.Session(graph=tf.Graph())
+    glbl.prof.set_session(sess)
     with sess.graph.as_default():
         features, labels = get_inference_input()
         model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, hparams)

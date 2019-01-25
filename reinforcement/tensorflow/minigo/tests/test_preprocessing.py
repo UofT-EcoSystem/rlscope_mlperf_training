@@ -21,6 +21,7 @@ import coords
 import preprocessing
 import features
 import go
+import glbl
 
 from tests import test_utils
 
@@ -44,6 +45,7 @@ class TestPreprocessing(test_utils.MiniGoUnitTest):
             shuffle_examples=False, filter_amount=filter_amount)
         recovered_data = []
         with tf.Session() as sess:
+            assert tf.get_default_session() is sess
             while True:
                 try:
                     pos_value, label_values = sess.run([pos_tensor, label_tensors])

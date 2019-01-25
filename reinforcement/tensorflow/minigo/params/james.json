@@ -1,7 +1,5 @@
 {
-//"MAX_GAMES_PER_GENERATION": 2000,
 "MAX_GAMES_PER_GENERATION": 1,
-//"BASE_DIR" : "$HOME/results/minigo/final/",
 "BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo",
 "HOLDOUT_PCT": 0,
 "NUM_MAIN_ITERATIONS": 10000,

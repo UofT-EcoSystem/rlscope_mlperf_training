@@ -20,6 +20,10 @@ import sgf_wrapper
 
 from gtp_wrapper import MCTSPlayer
 import goparams
+from tqdm import tqdm
+
+from profiler import glbl
+from parser.common import print_stacktrace
 
 SIMULTANEOUS_LEAVES = 8
 
@@ -34,6 +38,7 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
     sgf_dir: directory to write the sgf results.
     readouts: number of readouts to perform for each step in each game.
     """
+    # print_stacktrace("> evaluation.play_match")
 
     # For n games, we create lists of n black and n white players
     black = MCTSPlayer(
@@ -45,7 +50,12 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
     white_name = os.path.basename(white_net.save_file)
 
     winners = []
-    for i in range(games):
+    for i in tqdm(range(games), 'games'):
+        # About 15M / 2800 calls traced... so a lot but not enormous.
+        print("> game={i}".format(
+            i=i))
+        glbl.prof.set_operation('eval_game')
+
         num_move = 0  # The move number of the current game
 
         black.initialize_game()
@@ -77,6 +87,7 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
                 if active.result_string is None:
                   # This is an exceptionally  rare corner case where we don't get a winner.
                   # Our temporary solution is to just drop this game.
+                  print("> play_match: RARE CORNER CASE") # NEVER HAPPENS
                   break
                 winners.append(active.result_string[0])
                 with open(os.path.join(sgf_dir, fname), 'w') as _file:
@@ -102,5 +113,8 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
                                                                    readouts,
                                                                    timeper,
                                                                    dur))
+
+        glbl.prof.end_operation('eval_game')
+
     return winners
 

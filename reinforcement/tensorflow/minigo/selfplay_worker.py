@@ -33,7 +33,10 @@ from tensorflow import gfile
 import tensorflow as tf
 import logging
 
+from profiler import profilers
+
 import goparams
+from profiler import glbl
 
 import qmeas
 import multiprocessing
@@ -43,21 +46,41 @@ import multiprocessing
 
 #BASE_DIR = "gs://{}".format(BUCKET_NAME)
 #BASE_DIR = goparams.BASE_DIR
-BASE_DIR = sys.argv[1]
+# BASE_DIR = sys.argv[1]
 
+BASE_DIR = None
+MODELS_DIR = None
+SELFPLAY_DIR = None
+HOLDOUT_DIR = None
+SGF_DIR = None
+TRAINING_CHUNK_DIR = None
+ESTIMATOR_WORKING_DIR = None
+HOLDOUT_PCT = None
 
-MODELS_DIR = os.path.join(BASE_DIR, 'models')
-SELFPLAY_DIR = os.path.join(BASE_DIR, 'data/selfplay')
-HOLDOUT_DIR = os.path.join(BASE_DIR, 'data/holdout')
-SGF_DIR = os.path.join(BASE_DIR, 'sgf')
-TRAINING_CHUNK_DIR = os.path.join(BASE_DIR, 'data', 'training_chunks')
+def init_globals(base_dir):
+    global \
+    BASE_DIR, \
+    MODELS_DIR, \
+    SELFPLAY_DIR, \
+    HOLDOUT_DIR, \
+    SGF_DIR, \
+    TRAINING_CHUNK_DIR, \
+    ESTIMATOR_WORKING_DIR, \
+    HOLDOUT_PCT \
 
-ESTIMATOR_WORKING_DIR = os.path.join(BASE_DIR, 'estimator_working_dir')
+    BASE_DIR = base_dir
 
-# What percent of games to holdout from training per generation
+    MODELS_DIR = os.path.join(BASE_DIR, 'models')
+    SELFPLAY_DIR = os.path.join(BASE_DIR, 'data/selfplay')
+    HOLDOUT_DIR = os.path.join(BASE_DIR, 'data/holdout')
+    SGF_DIR = os.path.join(BASE_DIR, 'sgf')
+    TRAINING_CHUNK_DIR = os.path.join(BASE_DIR, 'data', 'training_chunks')
 
-HOLDOUT_PCT = goparams.HOLDOUT_PCT
+    ESTIMATOR_WORKING_DIR = os.path.join(BASE_DIR, 'estimator_working_dir')
 
+    # What percent of games to holdout from training per generation
+
+    HOLDOUT_PCT = goparams.HOLDOUT_PCT
 
 def print_flags():
     flags = {
@@ -250,13 +273,38 @@ def rl_loop():
 
     while count_games() < goparams.MAX_GAMES_PER_GENERATION:
       selfplay_cache_model(network, model_name)
+      # glbl.prof.next_step()
 
     print('Stopping selfplay after finding {} games played.'.format(count_games()))
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    # GOPARAMS=params/james.json python3 selfplay_worker.py
+    # /mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo 2
+    # --worker-id 0 loop_selfplay.py --iml-num-traces 10
+    # --iml-start-measuring-call 1 --iml-bench-name NoBenchName
+    # --iml-num-calls 1000
+    parser.add_argument("base_dir", help="Iteration of self-play/train-eval")
+    parser.add_argument("seed", type=int, help="Seed")
+    parser.add_argument("--worker-id", type=int, required=True, help="Worker id")
+    profilers.add_iml_arguments(parser)
+    args = parser.parse_args()
+    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    if goparams.SINGLE_SESSION:
+        glbl.init_session()
+
+    init_globals(args.base_dir)
+
+    glbl.prof.set_process_name("selfplay_worker_{i}".format(
+        i=args.worker_id))
+    # NOTE: use to inherit 'collect_simulator' from loop_selfplay.py
+    glbl.prof.set_phase("selfplay_worker_{i}".format(
+        i=args.worker_id))
+    glbl.prof.start()
+
     #tf.logging.set_verbosity(tf.logging.INFO)
-    seed = int(sys.argv[2])
+    seed = args.seed
     print('Self play worker: setting random seed = ', seed)
     random.seed(seed)
     tf.set_random_seed(seed)
@@ -275,3 +323,5 @@ if __name__ == '__main__':
     fh.setFormatter(formatter)
     log.addHandler(fh)
     rl_loop()
+
+    glbl.prof.stop()

@@ -1,8 +1,6 @@
 {
-//"MAX_GAMES_PER_GENERATION": 2000,
-"MAX_GAMES_PER_GENERATION": 1,
-//"BASE_DIR" : "$HOME/results/minigo/final/",
-"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo",
+"MAX_GAMES_PER_GENERATION": 2000,
+"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo/first_phase_single_worker",
 "HOLDOUT_PCT": 0,
 "NUM_MAIN_ITERATIONS": 10000,
 "BOARD_SIZE": 9,
@@ -18,5 +16,5 @@
 "TRIES_PER_PUZZLE": 5,
 "SP_READOUTS": 200,
 "TERMINATION_ACCURACY": 0.40,
-"NUM_GENERATIONS": 1000
+"NUM_GENERATIONS": 1
 }

@@ -22,10 +22,17 @@ fi
 echo "running benchmark with seed $seed"
 # The termination quality is set in params/final.json. See RAEDME.md.
 set -x
-./run.sh $seed "$@"
-sleep 3
-ret_code=$?; if [[ $ret_code != 0 ]]; then exit $ret_code; fi
 
+set +e
+./run.sh $seed "$@"
+ret_code=$?
+set -e
+
+sleep 3
+if [ "$ret_code" != "0" ]; then
+    echo "ERROR: run.sh failed with ret=$ret_code"
+    exit $ret_code
+fi
 
 # end timing
 end=$(date +%s)

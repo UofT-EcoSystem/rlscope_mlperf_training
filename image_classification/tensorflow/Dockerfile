@@ -23,7 +23,6 @@ RUN apt-get install -y python-setuptools
 RUN apt-get install -y python-pip python3-pip virtualenv htop
 RUN pip3 install --upgrade numpy scipy sklearn tf-nightly-gpu
 
-
 # Mount data into the docker
 ADD . /research/resnet
 
@@ -31,6 +30,8 @@ ADD . /research/resnet
 WORKDIR /research/resnet
 RUN pip3 install -r official/requirements.txt
 
+# JAMES NOTE: my stuff
+RUN pip3 install ipdb ipython
 
 ENTRYPOINT ["/bin/bash"]
 

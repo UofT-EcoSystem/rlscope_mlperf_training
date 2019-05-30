@@ -25,6 +25,9 @@ import shutil
 import dual_net
 import preprocessing
 import subprocess
+import pprint
+
+from profiler import profilers
 
 import glob
 from tensorflow import gfile
@@ -36,6 +39,8 @@ import goparams
 import predict_moves
 
 import qmeas
+
+from profiler import glbl
 
 SEED = None
 ITERATION = None
@@ -113,6 +118,9 @@ def main_():
     """
     print('Starting self play loop.')
 
+    # JAMES TODO: Add set_phase / end_phase (a phase in the RL case is a "generation":
+    # an "iteration" of loop_selfplay.py then loop_train_eval.py).
+
     qmeas.start_time('selfplay_wait')
     start_t = time.time()
 
@@ -124,10 +132,21 @@ def main_():
     ]
     def count_live_procs():
       return len(list(filter(lambda proc: proc.poll() is None, procs)))
-    def start_worker(num_workers):
+    def start_worker(i, num_workers):
       #procs.append(subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE))
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
-      cmd = 'GOPARAMS={} python3 selfplay_worker.py {} {}'.format(os.environ['GOPARAMS'], BASE_DIR, worker_seed)
+      # JAMES TODO: forward set_phase to children.
+      iml_argv = profilers.iml_argv(glbl.get_profiler())
+      cmd = "GOPARAMS={GOPARAMS} python3 selfplay_worker.py {BASE_DIR} {seed} --worker-id {id} {iml_args}".format(
+          GOPARAMS=os.environ['GOPARAMS'],
+          BASE_DIR=BASE_DIR,
+          id=i,
+          seed=worker_seed,
+          iml_args=" ".join(iml_argv),
+      )
+      print("> CMDLINE @ worker_{i}: {cmd}".format(
+          i=i, cmd=cmd))
+      pprint.pprint({'iml_argv': iml_argv, 'cmd':cmd})
       procs.append(subprocess.Popen(cmd, shell=True))
 
     selfplay_dir = os.path.join(SELFPLAY_DIR, model_name)
@@ -138,27 +157,39 @@ def main_():
         return 0
       return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
 
-
     print('NUM_PARALLEL_SELFPLAY = {n}'.format(n=goparams.NUM_PARALLEL_SELFPLAY))
     for i in range(goparams.NUM_PARALLEL_SELFPLAY):
       print('Starting Worker...')
       num_workers += 1
-      start_worker(num_workers)
+      start_worker(i, num_workers)
       time.sleep(1)
     sys.stdout.flush()
 
+    def check_procs():
+        failed = False
+        for i, proc in enumerate(procs):
+            ret = proc.poll()
+            if ret is not None and ret != 0:
+                failed = True
+                print("> Self-play worker failed: worker_id={i}".format(i=i))
+        if failed:
+            print("> FAILED!".format(i=i))
+            sys.exit(1)
+
     while count_games() < MAX_GAMES_PER_GENERATION:
         time.sleep(10)
+        check_procs()
+
         games = count_games()
         print('Found Games: {}'.format(games))
         print('selfplaying: {:.2f} games/hour'.format(games / ((time.time() - start_t) / 60 / 60) ))
         print('Worker Processes: {}'.format(count_live_procs()))
         sys.stdout.flush()
 
-
     print('Done with selfplay loop.')
 
     time.sleep(10)
+    check_procs()
 
     for proc in procs:
       proc.kill()
@@ -192,8 +223,23 @@ def main_():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("seed", type=int, help="Seed")
+    parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
+    profilers.add_iml_arguments(parser)
+    args = parser.parse_args()
+    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    if goparams.SINGLE_SESSION:
+        glbl.init_session()
+
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
+    glbl.prof.set_process_name('loop_selfplay')
+
+    # glbl.prof.set_phase('collect_simulator') # <-- this call triggers GPU allocation
+    glbl.prof.set_phase('selfplay_workers') # <-- this call triggers GPU allocation
+
+    glbl.prof.start()
 
     SEED = int(sys.argv[1])
     ITERATION = int(sys.argv[2])
@@ -211,4 +257,7 @@ if __name__ == '__main__':
     fh.setFormatter(formatter)
     log.addHandler(fh)
     main_()
+
+    glbl.prof.stop()
     qmeas.end()
+

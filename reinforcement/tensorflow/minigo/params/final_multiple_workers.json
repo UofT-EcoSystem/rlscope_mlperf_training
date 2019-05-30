@@ -1,8 +1,10 @@
+// This took ~ 8 hours to play 40/125 games and generated 22gb of trace data.
+// So, NOT feasible for trace-analysis at all.
 {
 //"MAX_GAMES_PER_GENERATION": 2000,
-"MAX_GAMES_PER_GENERATION": 1,
+"MAX_GAMES_PER_GENERATION": 125,
 //"BASE_DIR" : "$HOME/results/minigo/final/",
-"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo",
+"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo/no_env",
 "HOLDOUT_PCT": 0,
 "NUM_MAIN_ITERATIONS": 10000,
 "BOARD_SIZE": 9,
@@ -10,13 +12,15 @@
 "EXAMPLES_PER_RECORD": 50000,
 "WINDOW_SIZE": 2000000,
 "DUMMY_MODEL": false,
-"NUM_PARALLEL_SELFPLAY": 1,
+"NUM_PARALLEL_SELFPLAY": 2,
 "EVAL_GAMES_PER_SIDE": 50,
 "EVAL_WIN_PCT_FOR_NEW_MODEL": 0.55,
 "EVALUATE_MODELS": true,
-"EVALUATE_PUZZLES": true,
+//"EVALUATE_PUZZLES": true,
+"EVALUATE_PUZZLES": false,
 "TRIES_PER_PUZZLE": 5,
 "SP_READOUTS": 200,
 "TERMINATION_ACCURACY": 0.40,
-"NUM_GENERATIONS": 1000
+//"NUM_GENERATIONS": 1000
+"NUM_GENERATIONS": 1
 }

@@ -21,7 +21,9 @@ import coords
 import preprocessing
 import features
 import go
-import glbl
+from profiler import glbl
+
+import goparams
 
 from tests import test_utils
 
@@ -44,7 +46,13 @@ class TestPreprocessing(test_utils.MiniGoUnitTest):
             1, [tf_record], num_repeats=1, shuffle_records=False,
             shuffle_examples=False, filter_amount=filter_amount)
         recovered_data = []
-        with tf.Session() as sess:
+
+        if not goparams.SINGLE_SESSION:
+            sess = tf.Session()
+        else:
+            sess = tf.get_default_session()
+
+        with sess:
             assert tf.get_default_session() is sess
             while True:
                 try:

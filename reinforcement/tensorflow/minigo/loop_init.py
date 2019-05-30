@@ -35,7 +35,7 @@ import logging
 
 import goparams
 import predict_moves
-import glbl
+from profiler import glbl
 
 import qmeas
 
@@ -125,19 +125,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     profilers.add_iml_arguments(parser)
     args = parser.parse_args()
+    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    if goparams.SINGLE_SESSION:
+        glbl.init_session()
 
-    if args.iml_directory is not None:
-        iml_directory = args.iml_dir
-    else:
-        iml_directory = BASE_DIR
-    profilers.handle_iml_args(output_directory=iml_directory,
-                              parser=parser,
-                              args=args)
-    glbl.init_profiler(
-        directory=iml_directory,
-        args=args,
-    )
     glbl.prof.set_process_name('loop_init')
+    # glbl.prof.set_phase('init')
+    glbl.prof.set_phase('bootstrap')
     glbl.prof.start()
 
     #tf.logging.set_verbosity(tf.logging.INFO)

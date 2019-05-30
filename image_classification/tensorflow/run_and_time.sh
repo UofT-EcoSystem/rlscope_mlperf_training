@@ -6,6 +6,14 @@
 
 set -e
 
+# path to the mlpef_compliance package in local directory,
+# if not set then default to the package name for installing from PyPI.
+export MLPERF_COMPLIANCE_PKG=${MLPERF_COMPLIANCE_PKG:-mlperf_compliance}
+
+# Install mlperf_compliance package.
+# The mlperf_compliance package is used for compliance logging.
+pip3 install ${MLPERF_COMPLIANCE_PKG}
+
 # start timing 
 start=$(date +%s)
 start_fmt=$(date +%Y-%m-%d\ %r)

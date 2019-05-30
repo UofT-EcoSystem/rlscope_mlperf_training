@@ -37,6 +37,9 @@ import logging
 
 import goparams
 import predict_games
+from profiler import glbl
+
+from profiler import profilers
 
 import qmeas
 
@@ -133,7 +136,7 @@ def evaluate(prev_model, cur_model, readouts=200, verbose=1, resign_threshold=0.
       qmeas.record('evaluate_choice', 'old')
       keep = False
     qmeas.record('eval_summary', {'win_pct': cur_win_pct, 'model': cur_model, 'keep': keep})
-    return keep 
+    return keep
 
 
 def gather():
@@ -240,15 +243,22 @@ def rl_loop():
     gather()
 
     print("Training on gathered game data...")
+    # import ipdb; ipdb.set_trace()
     _, model_name = get_latest_model()
+    # JAMES NOTE: this runs very fast.
     new_model = train()
 
+    # glbl.prof.set_phase('evaluate_improvement')
+    glbl.prof.set_phase('evaluate')
 
     if goparams.EVALUATE_PUZZLES:
 
-
+      # JAMES TODO: We'd like to nest 'load_network'/'init_network' inside 'puzzle' here...
       qmeas.start_time('puzzle')
+      print("Evaluate puzzles")
+      # import ipdb; ipdb.set_trace()
       new_model_path = os.path.join(MODELS_DIR, new_model)
+      # JAMES NOTE: pretrained puzzle moves? What are these?
       sgf_files = [
         './benchmark_sgf/9x9_pro_YKSH.sgf',
         './benchmark_sgf/9x9_pro_IYMD.sgf',
@@ -282,16 +292,42 @@ def rl_loop():
           f.write('\n' + str(total_pct) + '\n')
 
 
+    # JAMES TODO: with glbl.prof.use_num_calls(3000):
+    # TODO: appears to be running multiple evaluations? (expect 3 games, saw more.)
     if goparams.EVALUATE_MODELS:
-      if not evaluate(model_name, new_model):
+
+      # JAMES NOTE: Use the same number of "readouts" as during self-play.
+      # NOTE: "readouts" = # of MCTS nodes that get "expanded" BEFORE choosing a move.
+      # So expects increasing readouts by a factor of 10 to simply multiply subplot-phase
+      # runtime by a factor of 10, with the same CPU/GPU utilization characteristics.
+
+      readouts = goparams.SP_READOUTS
+      print("> Evaluate with readouts={readouts}".format(
+          readouts=readouts))
+      if not evaluate(model_name, new_model, readouts=readouts):
         bury_latest_model()
 
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("seed", type=int, help="Seed")
+    parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
+    # parser.add_argument("base_dir", type=int, help="Iteration of self-play/train-eval")
+    # parser.add_argument("worker_id", type=int, help="Worker id")
+    profilers.add_iml_arguments(parser)
+    args = parser.parse_args()
+    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    if goparams.SINGLE_SESSION:
+        glbl.init_session()
+
+    glbl.prof.set_process_name("loop_train_eval")
+    glbl.prof.set_phase('sgd_updates')
+    glbl.prof.start()
+
     #tf.logging.set_verbosity(tf.logging.INFO)
-    seed = int(sys.argv[1])
-    iteration = int(sys.argv[2])
+    seed = args.seed
+    iteration = args.iteration
     print('Setting random seed, iteration = ', seed, iteration)
     seed = hash(seed) + iteration
     print("training seed: ", seed)
@@ -315,3 +351,5 @@ if __name__ == '__main__':
     rl_loop()
     qmeas.end()
     mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=iteration)
+
+    glbl.prof.stop()

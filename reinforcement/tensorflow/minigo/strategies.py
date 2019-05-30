@@ -27,6 +27,8 @@ from mcts import MCTSNode, MAX_DEPTH
 
 import go
 
+from profiler import glbl
+
 # When to do deterministic move selection.  ~30 moves on a 19x19, ~8 on 9x9
 TEMPERATURE_CUTOFF = int((go.N * go.N) / 12)
 
@@ -164,11 +166,13 @@ class MCTSPlayerMixin:
         return coords.from_flat(fcoord)
 
     def tree_search(self, num_parallel=None):
+        glbl.prof.set_operation('tree_search')
         if num_parallel is None:
             num_parallel = self.num_parallel
         leaves = []
         failsafe = 0
         while len(leaves) < num_parallel and failsafe < num_parallel * 2:
+            glbl.prof.set_operation('tree_search_loop')
             failsafe += 1
             leaf = self.root.select_leaf()
             if self.verbosity >= 4:
@@ -177,15 +181,18 @@ class MCTSPlayerMixin:
             if leaf.is_done():
                 value = 1 if leaf.position.score() > 0 else -1
                 leaf.backup_value(value, up_to=self.root)
+                glbl.prof.end_operation('tree_search_loop')
                 continue
             leaf.add_virtual_loss(up_to=self.root)
             leaves.append(leaf)
+            glbl.prof.end_operation('tree_search_loop')
         if leaves:
             move_probs, values = self.network.run_many(
                 [leaf.position for leaf in leaves])
             for leaf, move_prob, value in zip(leaves, move_probs, values):
                 leaf.revert_virtual_loss(up_to=self.root)
                 leaf.incorporate_results(move_prob, value, up_to=self.root)
+        glbl.prof.end_operation('tree_search')
 
     def show_path_to_root(self, node):
         pos = node.position

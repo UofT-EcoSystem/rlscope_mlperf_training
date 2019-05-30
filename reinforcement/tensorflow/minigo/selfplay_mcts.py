@@ -22,6 +22,8 @@ import coords
 import go
 from gtp_wrapper import MCTSPlayer
 
+from profiler import glbl
+
 SIMULTANEOUS_LEAVES = 8
 
 
@@ -50,6 +52,7 @@ def play(network, readouts, resign_threshold, verbosity=0):
     first_node.incorporate_results(prob, val, first_node)
 
     while True:
+        glbl.prof.set_operation('selfplay_loop')
         start = time.time()
         player.root.inject_noise()
         current_readouts = player.root.N
@@ -64,11 +67,13 @@ def play(network, readouts, resign_threshold, verbosity=0):
         if player.should_resign():
             player.set_result(-1 * player.root.position.to_play,
                               was_resign=True)
+            glbl.prof.end_operation('selfplay_loop')
             break
         move = player.pick_move()
         player.play_move(move)
         if player.root.is_done():
             player.set_result(player.root.position.result(), was_resign=False)
+            glbl.prof.end_operation('selfplay_loop')
             break
 
         if (verbosity >= 2) or (verbosity >= 1 and player.root.position.n % 10 == 9):
@@ -79,6 +84,8 @@ def play(network, readouts, resign_threshold, verbosity=0):
         if verbosity >= 3:
             print("Played >>",
                   coords.to_kgs(coords.from_flat(player.root.fmove)))
+
+        glbl.prof.end_operation('selfplay_loop')
 
     if verbosity >= 2:
         print("%s: %.3f" % (player.result_string, player.root.Q), file=sys.stderr)

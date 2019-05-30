@@ -8,7 +8,9 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+from os import environ as ENV
 import json
+import jsmin
 import socket
 import time
 import base64
@@ -23,15 +25,25 @@ _PARAMS = None
 
 if 'GOPARAMS' in os.environ:
   with open(os.environ['GOPARAMS']) as f:
-    _PARAMS = json.load(f)
+    # minified = jsmin.jsmin(f.read(), quote_chars="'\"`")
+    js_str = jsmin.jsmin(f.read())
+    _PARAMS = json.loads(js_str)
+  # with open(os.environ['GOPARAMS']) as f:
+  #   _PARAMS = json.load(f)
 else:
   pass
   #raise Exception('GOPARAMS not defined. Use GOPARAMS=path/to/json')
 
 
-def _set(name, default):
+def _set(name, default, allow_env=False):
   val = default
-  if _PARAMS is not None:
+  if allow_env and name in ENV:
+    print("> Using {name}={value} from ENV".format(
+      name=name,
+      value=ENV[name],
+    ))
+    val = ENV[name]
+  elif _PARAMS is not None:
     if name not in _PARAMS:
       raise Exception('Key ' + name + ' Not Defined in GOPARAMS config')
     val = _PARAMS[name]
@@ -46,7 +58,7 @@ HOME = os.environ['HOME']
 
 
 # Root directory for everything and stuff
-_set('BASE_DIR', '$HOME/results/minigo/current.$HOST.$NOWSHORT/')
+_set('BASE_DIR', '$HOME/results/minigo/current.$HOST.$NOWSHORT/', allow_env=True)
 BASE_DIR = BASE_DIR.replace('$HOME', HOME)
 BASE_DIR = BASE_DIR.replace('$HOST', HOST)
 BASE_DIR = BASE_DIR.replace('$NOWSHORT', NOWSHORT)
@@ -93,3 +105,10 @@ _set('EVALUATE_PUZZLES', True)
 _set('TRIES_PER_PUZZLE', 1)
 _set('SP_READOUTS', 200)
 _set('TERMINATION_ACCURACY', 100)
+
+# IML: DON'T create multiple tf.Session objects.
+# It's annoying (but not imposssible) to create support for multiple tf.Session objects.
+# However, I don't see a good reason to do so
+# (tf.Session objects are typically created for modularity reasons, nothing else).
+# SINGLE_SESSION = True
+SINGLE_SESSION = False

@@ -22,7 +22,7 @@ import coords
 import features as features_lib
 import go
 import sgf_wrapper
-import glbl
+from profiler import glbl
 
 import goparams
 
@@ -213,8 +213,11 @@ def shuffle_tf_examples(gather_size, records_to_shuffle):
     '''
     dataset = read_tf_records(gather_size, records_to_shuffle, num_repeats=1)
     batch = dataset.make_one_shot_iterator().get_next()
-    sess = tf.Session()
-    glbl.prof.set_session(sess)
+    if not goparams.SINGLE_SESSION:
+        sess = tf.Session()
+        # glbl.prof.set_session(sess)
+    else:
+        sess = tf.get_default_session()
     while True:
         try:
             result = sess.run(batch)

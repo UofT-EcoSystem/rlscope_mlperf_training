@@ -25,6 +25,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import time
 
 import tensorflow as tf  # pylint: disable=g-bad-import-order
 
@@ -413,6 +414,7 @@ def resnet_main(seed, flags, model_function, input_function, shape=None):
 
   mlperf_log.resnet_print(key=mlperf_log.INPUT_BATCH_SIZE,
                           value=flags.batch_size)
+  # import ipdb; ipdb.set_trace()
   classifier = tf.estimator.Estimator(
       model_fn=model_function, model_dir=flags.model_dir, config=run_config,
       params={
@@ -475,8 +477,20 @@ def resnet_main(seed, flags, model_function, input_function, shape=None):
           dtype=flags.dtype
       )
 
+    # JAMES TODO: add profiler.start()/stop() around this.
+
+    print("> classifier.train...")
+    classifier_start_t = time.time()
     classifier.train(input_fn=input_fn_train, hooks=train_hooks + [compliance_hook],
                      max_steps=flags.max_train_steps)
+    classifier_end_t = time.time()
+    print("  > classifier.train took {sec} seconds".format(sec=classifier_end_t - classifier_start_t))
+    # > classifier.train took ... seconds
+    # 17.917516708374023
+    # 15.219088554382324
+    # 15.46886134147644
+    # 14.672760248184204
+    # 15.516273021697998
 
     train_examples = int(_log_cache.pop()[_NUM_EXAMPLES_NAME])
     mlperf_log.resnet_print(key=mlperf_log.INPUT_SIZE, value=train_examples)

@@ -1,13 +1,13 @@
 {
 //"MAX_GAMES_PER_GENERATION": 2000,
+//"MAX_GAMES_PER_GENERATION": 1,
 "MAX_GAMES_PER_GENERATION": 1,
-//"BASE_DIR" : "$HOME/results/minigo/final/",
-"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo",
+"BASE_DIR" : "/mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo/fast",
 "HOLDOUT_PCT": 0,
 "NUM_MAIN_ITERATIONS": 10000,
-"BOARD_SIZE": 9,
+"BOARD_SIZE": 3,
 "SHUFFLE_BUFFER_SIZE": 100000,
-"EXAMPLES_PER_RECORD": 50000,
+"EXAMPLES_PER_RECORD": 10000,
 "WINDOW_SIZE": 2000000,
 "DUMMY_MODEL": false,
 "NUM_PARALLEL_SELFPLAY": 1,
@@ -18,5 +18,6 @@
 "TRIES_PER_PUZZLE": 5,
 "SP_READOUTS": 200,
 "TERMINATION_ACCURACY": 0.40,
-"NUM_GENERATIONS": 1000
+//"NUM_GENERATIONS": 1000
+"NUM_GENERATIONS": 1
 }

@@ -18,6 +18,7 @@ This helps the intermediate layers extract concepts that are relevant to both
 move prediction and score estimation.
 """
 
+import pprint
 import collections
 import functools
 import math
@@ -29,51 +30,76 @@ import tensorflow as tf
 from tensorflow.python.training.summary_io import SummaryWriterCache
 from tqdm import tqdm
 from typing import Dict
+import textwrap
 
 import features
 import preprocessing
 import symmetries
 import go
-import glbl
+from profiler import glbl
+
+import goparams
 
 # How many positions to look at per generation.
 # Per AGZ, 2048 minibatch * 1k = 2M positions/generation
 #EXAMPLES_PER_GENERATION = 2000000
-EXAMPLES_PER_GENERATION = 100000
+# EXAMPLES_PER_GENERATION = 100000
+
+# sgd_updates proto file is WAY too big 800MB and causes issues during analyzing data.
+# Make the file manageable.
+EXAMPLES_PER_GENERATION = int(100000 * (1./10.))
 
 # How many positions can fit on a graphics card. 256 for 9s, 16 or 32 for 19s.
 TRAIN_BATCH_SIZE = 16
 #TRAIN_BATCH_SIZE = 256
 
+# EXAMPLES_PER_GENERATION = TRAIN_BATCH_SIZE * 10
+
+assert EXAMPLES_PER_GENERATION % TRAIN_BATCH_SIZE == 0
+
 
 class DualNetwork():
-    def __init__(self, save_file, **hparams):
+    def __init__(self, save_file, name=None, debug=False, **hparams):
         self.save_file = save_file
         self.hparams = get_default_hyperparams(**hparams)
+        self.debug = debug
+        self.name = name
         self.inference_input = None
         self.inference_output = None
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        self.sess = tf.Session(graph=tf.Graph(), config=config)
-        glbl.prof.set_session(self.sess)
+        if not goparams.SINGLE_SESSION:
+            # JAMES TODO: is Session being used to manage loading multiple policy/value Graph's at the same time?
+            self.sess = tf.Session(graph=tf.Graph(), config=config)
+            # glbl.prof.set_session(self.sess)
+        else:
+            self.sess = tf.get_default_session()
         self.initialize_graph()
 
     def initialize_graph(self):
+        if self.save_file is not None:
+            op = 'load_network'
+        else:
+            op = 'init_network'
+
+        glbl.prof.set_operation(op)
         with self.sess.graph.as_default():
             features, labels = get_inference_input()
-            estimator_spec = model_fn(features, labels,
-                                      tf.estimator.ModeKeys.PREDICT, self.hparams)
+            estimator_spec = _model_fn(features, labels,
+                                       tf.estimator.ModeKeys.PREDICT, self.hparams,
+                                       debug=self.debug, name=self.name)
             self.inference_input = features
             self.inference_output = estimator_spec.predictions
             if self.save_file is not None:
                 self.initialize_weights(self.save_file)
             else:
                 self.sess.run(tf.global_variables_initializer())
+        glbl.prof.end_operation(op)
 
     def initialize_weights(self, save_file):
         """Initialize the weights from the given save_file.
         Assumes that the graph has been constructed, and the
-        save_file contains weights that match the graph. Used 
+        save_file contains weights that match the graph. Used
         to set the weights to a different version of the player
         without redifining the entire graph."""
         tf.train.Saver().restore(self.sess, save_file)
@@ -141,7 +167,12 @@ def get_default_hyperparams(**overrides):
     return hparams
 
 
+# TensorFlow is strict about its function-format (arg names must match exactly)
 def model_fn(features, labels, mode, params, config=None):
+    return _model_fn(features, labels, mode, params, config)
+
+def _model_fn(features, labels, mode, params, config=None,
+             debug=False, name=None):
     '''
     Args:
         features: tensor with shape
@@ -172,8 +203,32 @@ def model_fn(features, labels, mode, params, config=None):
         tf.layers.conv2d,
         filters=params['k'], kernel_size=[3, 3], padding="same")
 
-    def my_res_layer(inputs):
-        int_layer1 = my_batchn(my_conv2d(inputs))
+    def my_res_layer(i, inputs):
+
+        conv2d = my_conv2d(inputs)
+
+        if i == 0 and debug:
+            # pprint.pprint({'dir(conv2d):':dir(conv2d)})
+            # print("> conv2d = {conv2d}".format(conv2d=conv2d))
+            layer_name = conv2d.name.split('/')[0]
+            weight_name = "{layer}/kernel".format(layer=layer_name)
+            weights = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, weight_name)[0]
+            print("> model_fn: name={name}:".format(
+                name=name,
+            ))
+            print(textwrap.indent(textwrap.dedent("""
+              - layer = {layer}
+              - layer_name = {layer_name}
+              - weight_name = {weight_name}
+              - weights = {weights}
+            """.format(
+                layer=conv2d,
+                layer_name=layer_name,
+                weight_name=weight_name,
+                weights=weights,
+            )), prefix="  "))
+
+        int_layer1 = my_batchn(conv2d)
         initial_output = tf.nn.relu(int_layer1)
         int_layer2 = my_batchn(my_conv2d(initial_output))
         output = tf.nn.relu(inputs + int_layer2)
@@ -184,7 +239,7 @@ def model_fn(features, labels, mode, params, config=None):
     # the shared stack
     shared_output = initial_output
     for i in range(params['num_shared_layers']):
-        shared_output = my_res_layer(shared_output)
+        shared_output = my_res_layer(i, shared_output)
 
     # policy head
     policy_conv = tf.nn.relu(my_batchn(
@@ -281,9 +336,14 @@ def bootstrap(working_dir, **hparams):
     # order to run the full train pipeline for 1 step.
     estimator_initial_checkpoint_name = 'model.ckpt-1'
     save_file = os.path.join(working_dir, estimator_initial_checkpoint_name)
-    sess = tf.Session(graph=tf.Graph())
-    glbl.prof.set_session(sess)
-    with sess.graph.as_default():
+    if not goparams.SINGLE_SESSION:
+        sess = tf.Session(graph=tf.Graph())
+        # glbl.prof.set_session(sess)
+        graph = sess.graph
+    else:
+        sess = tf.get_default_session()
+        graph = tf.get_default_graph()
+    with graph.as_default():
         features, labels = get_inference_input()
         model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, hparams)
         sess.run(tf.global_variables_initializer())
@@ -312,9 +372,19 @@ def export_model(working_dir, model_path):
 
 
 def train(working_dir, tf_records, generation_num, **hparams):
+    # JAMES TODO: maybe, we'd like to have the operation be a single minibatch;
+    # When we had an explicit training loop, we could achieve this.
+    # How can we achieve that when tensorflow's estimator API is used?
+    # We'd really like to add prof.set_operation('forward') / prof.set_operation('gradient_update')
+    # inside TensorFlow's estimator code...
+    # However, that could accidentally add nested operations which would be annoying.
+    #
+    # IMPORTANT: Without single minibatch operation breakdowns,
+    # we cannot extrapolate the total runtime.
     assert generation_num > 0, "Model 0 is random weights"
     estimator = get_estimator(working_dir, **hparams)
     max_steps = generation_num * EXAMPLES_PER_GENERATION // TRAIN_BATCH_SIZE
+    print("> num_steps = {max_steps}".format(max_steps=max_steps))
 
     def input_fn(): return preprocessing.get_input_tensors(
         TRAIN_BATCH_SIZE, tf_records)

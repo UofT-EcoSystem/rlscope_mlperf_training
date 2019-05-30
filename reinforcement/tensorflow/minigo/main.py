@@ -42,7 +42,7 @@ import utils
 
 import qmeas
 import goparams
-import glbl
+from profiler import glbl
 
 # How many positions we should aggregate per 'chunk'.
 EXAMPLES_PER_RECORD = goparams.EXAMPLES_PER_RECORD
@@ -110,6 +110,7 @@ def train(
         model_save_path: 'Where to export the completed generation.',
         generation_num: 'Which generation you are training.'=0):
     qmeas.start_time('train')
+    # NOTE: DON'T use a train annotation; screws up dumping small files during sgd_updates
     tf_records = sorted(gfile.Glob(os.path.join(chunk_dir, '*.tfrecord.zz')))
     tf_records = tf_records[-1 * (WINDOW_SIZE // EXAMPLES_PER_RECORD):]
 
@@ -117,7 +118,9 @@ def train(
 
     with timer("Training"):
         dual_net.train(working_dir, tf_records, generation_num)
+        glbl.prof.set_operation('export_model')
         dual_net.export_model(working_dir, model_save_path)
+        glbl.prof.end_operation('export_model')
     qmeas.stop_time('train')
 
 
@@ -127,6 +130,7 @@ def validate(
         checkpoint_name: 'Which checkpoint to evaluate (None=latest)'=None,
         validate_name: 'Name for validation set (i.e., selfplay or human)'=None):
     qmeas.start_time('validate')
+    glbl.prof.set_operation('validate')
     tf_records = []
     with timer("Building lists of holdout files"):
         for record_dir in tf_record_dirs:
@@ -138,6 +142,7 @@ def validate(
         dual_net.validate(
             working_dir, tf_records, checkpoint_name=checkpoint_name,
             name=validate_name)
+    glbl.prof.end_operation('validate')
     qmeas.stop_time('validate')
 
 
@@ -149,16 +154,21 @@ def evaluate(
         games: 'the number of games to play'=20,
         verbose: 'How verbose the players should be (see selfplay)' = 1):
     qmeas.start_time('evaluate')
+    # Too broad.
+    # glbl.prof.set_operation('evaluate')
     _ensure_dir_exists(output_dir)
 
     with timer("Loading weights"):
-        black_net = dual_net.DualNetwork(black_model)
-        white_net = dual_net.DualNetwork(white_model)
+        debug = True
+        black_net = dual_net.DualNetwork(black_model, name='black_net', debug=debug)
+        white_net = dual_net.DualNetwork(white_model, name='white_net', debug=debug)
 
     winners = []
     with timer("%d games" % games):
+        # All the time is spent here.
         winners = evaluation.play_match(
             black_net, white_net, games, readouts, output_dir, verbose)
+    # glbl.prof.end_operation('evaluate')
     qmeas.stop_time('evaluate')
     white_count = 0
     for win in winners:
@@ -177,11 +187,15 @@ def evaluate_evenly(
         verbose: 'How verbose the players should be (see selfplay)' = 1):
   ''' Returns the white win rate; playes 'games' number of games on both sides. '''
   try:
+    # JAMES NOTE: This thing calls evaluate TWICE.
     result = (evaluate(black_model, white_model, output_dir, readouts, games, verbose) + (1 - evaluate(white_model, black_model, output_dir, readouts, games, verbose)))/ 2.0
   except TypeError:
     # It is remotely possible that in weird twist of fate results in a type
     # error... Possibly due to weird corner cases in the evaluation...
     # Our fall back will be to try agian.
+
+    print("> evaluate_evenly: GOT A TYPE ERROR") # NEVER HAPPENS
+    import ipdb; ipdb.set_trace()
     result = (evaluate(black_model, white_model, output_dir, readouts, games, verbose) + (1 - evaluate(white_model, black_model, output_dir, readouts, games, verbose)))/ 2.0
     # should this really happen twice, the world really doesn't
     # want this to be successful... and we will raise the error.
@@ -202,6 +216,7 @@ def selfplay(
         resign_threshold: 'absolute value of threshold to resign at' = 0.95,
         holdout_pct: 'how many games to hold out for validation' = 0.05):
     qmeas.start_time('selfplay')
+    glbl.prof.set_operation('selfplay')
     clean_sgf = os.path.join(output_sgf, 'clean')
     full_sgf = os.path.join(output_sgf, 'full')
     _ensure_dir_exists(clean_sgf)
@@ -232,6 +247,7 @@ def selfplay(
         fname = os.path.join(output_dir, "{}.tfrecord.zz".format(output_name))
 
     preprocessing.write_tf_examples(fname, tf_examples)
+    glbl.prof.end_operation('selfplay')
     qmeas.stop_time('selfplay')
 
 
@@ -245,6 +261,9 @@ def selfplay_cache_model(
         resign_threshold: 'absolute value of threshold to resign at' = 0.95,
         holdout_pct: 'how many games to hold out for validation' = 0.05):
     qmeas.start_time('selfplay')
+    # This operation type is very broad...
+    # Leads to some rather big traces.
+    # glbl.prof.set_operation('selfplay_cache_model')
     clean_sgf = os.path.join(output_sgf, 'clean')
     full_sgf = os.path.join(output_sgf, 'full')
     _ensure_dir_exists(clean_sgf)
@@ -272,6 +291,7 @@ def selfplay_cache_model(
         fname = os.path.join(output_dir, "{}.tfrecord.zz".format(output_name))
 
     preprocessing.write_tf_examples(fname, tf_examples)
+    # glbl.prof.end_operation('selfplay_cache_model')
     qmeas.stop_time('selfplay')
 
 
@@ -281,6 +301,7 @@ def gather(
         output_directory: 'where to put collected games'='data/training_chunks/',
         examples_per_record: 'how many tf.examples to gather in each chunk'=EXAMPLES_PER_RECORD):
     qmeas.start_time('gather')
+    glbl.prof.set_operation('gather')
     _ensure_dir_exists(output_directory)
     models = [model_dir.strip('/')
               for model_dir in sorted(gfile.ListDirectory(input_directory))[-50:]]
@@ -319,6 +340,7 @@ def gather(
           (len(already_processed) - num_already_processed))
     with gfile.GFile(meta_file, 'w') as f:
         f.write('\n'.join(sorted(already_processed)))
+    glbl.prof.end_operation('gather')
     qmeas.stop_time('gather')
 
 

@@ -35,14 +35,11 @@ import logging
 
 import goparams
 import predict_moves
-from profiler import glbl
+import iml_profiler.api as iml
 
 import qmeas
 
 from mlperf_compliance import mlperf_log
-
-from profiler.profilers import Profiler
-from profiler import profilers
 
 # Pull in environment variables. Run `source ./cluster/common` to set these.
 #BUCKET_NAME = os.environ['BUCKET_NAME']
@@ -123,37 +120,31 @@ def main_fn():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    profilers.add_iml_arguments(parser)
+    iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
-    if goparams.SINGLE_SESSION:
-        glbl.init_session()
+    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
 
-    glbl.prof.set_process_name('loop_init')
-    # glbl.prof.set_phase('init')
-    glbl.prof.set_phase('bootstrap')
-    glbl.prof.start()
+    with iml.prof.profile(process_name='loop_init', phase_name='bootstrap'):
 
-    #tf.logging.set_verbosity(tf.logging.INFO)
-    qmeas.start(os.path.join(BASE_DIR, 'stats'))
+        #tf.logging.set_verbosity(tf.logging.INFO)
+        qmeas.start(os.path.join(BASE_DIR, 'stats'))
 
-    # get TF logger
-    log = logging.getLogger('tensorflow')
-    log.setLevel(logging.DEBUG)
+        # get TF logger
+        log = logging.getLogger('tensorflow')
+        log.setLevel(logging.DEBUG)
 
-    # create formatter and add it to the handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # create file handler which logs even debug messages
-    fh = logging.FileHandler('tensorflow.log')
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    log.addHandler(fh)
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler('tensorflow.log')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        log.addHandler(fh)
 
-    # mlperf logging for starting the entire run
-    mlperf_log.minigo_print(key=mlperf_log.RUN_START)
+        # mlperf logging for starting the entire run
+        mlperf_log.minigo_print(key=mlperf_log.RUN_START)
 
-    main_fn()
+        main_fn()
 
-    glbl.prof.stop()
     qmeas.end()

@@ -21,7 +21,7 @@ import coords
 import preprocessing
 import features
 import go
-from profiler import glbl
+import iml_profiler.api as iml
 
 import goparams
 
@@ -47,10 +47,7 @@ class TestPreprocessing(test_utils.MiniGoUnitTest):
             shuffle_examples=False, filter_amount=filter_amount)
         recovered_data = []
 
-        if not goparams.SINGLE_SESSION:
-            sess = tf.Session()
-        else:
-            sess = tf.get_default_session()
+        sess = tf.Session()
 
         with sess:
             assert tf.get_default_session() is sess

@@ -42,7 +42,7 @@ import utils
 
 import qmeas
 import goparams
-from profiler import glbl
+import iml_profiler.api as iml
 
 # How many positions we should aggregate per 'chunk'.
 EXAMPLES_PER_RECORD = goparams.EXAMPLES_PER_RECORD
@@ -89,19 +89,18 @@ def bootstrap(
         working_dir: 'tf.estimator working directory. If not set, defaults to a random tmp dir'=None,
         model_save_path: 'Where to export the first bootstrapped generation'=None):
     qmeas.start_time('bootstrap')
-    glbl.prof.set_operation('bootstrap')
-    if working_dir is None:
-        with tempfile.TemporaryDirectory() as working_dir:
+    with iml.prof.operation('bootstrap'):
+        if working_dir is None:
+            with tempfile.TemporaryDirectory() as working_dir:
+                _ensure_dir_exists(working_dir)
+                _ensure_dir_exists(os.path.dirname(model_save_path))
+                dual_net.bootstrap(working_dir)
+                dual_net.export_model(working_dir, model_save_path)
+        else:
             _ensure_dir_exists(working_dir)
             _ensure_dir_exists(os.path.dirname(model_save_path))
             dual_net.bootstrap(working_dir)
             dual_net.export_model(working_dir, model_save_path)
-    else:
-        _ensure_dir_exists(working_dir)
-        _ensure_dir_exists(os.path.dirname(model_save_path))
-        dual_net.bootstrap(working_dir)
-        dual_net.export_model(working_dir, model_save_path)
-    glbl.prof.end_operation('bootstrap')
     qmeas.stop_time('bootstrap')
 
 def train(
@@ -118,9 +117,8 @@ def train(
 
     with timer("Training"):
         dual_net.train(working_dir, tf_records, generation_num)
-        glbl.prof.set_operation('export_model')
-        dual_net.export_model(working_dir, model_save_path)
-        glbl.prof.end_operation('export_model')
+        with iml.prof.operation('export_model'):
+            dual_net.export_model(working_dir, model_save_path)
     qmeas.stop_time('train')
 
 
@@ -130,19 +128,18 @@ def validate(
         checkpoint_name: 'Which checkpoint to evaluate (None=latest)'=None,
         validate_name: 'Name for validation set (i.e., selfplay or human)'=None):
     qmeas.start_time('validate')
-    glbl.prof.set_operation('validate')
-    tf_records = []
-    with timer("Building lists of holdout files"):
-        for record_dir in tf_record_dirs:
-            tf_records.extend(gfile.Glob(os.path.join(record_dir, '*.zz')))
+    with iml.prof.operation('validate'):
+        tf_records = []
+        with timer("Building lists of holdout files"):
+            for record_dir in tf_record_dirs:
+                tf_records.extend(gfile.Glob(os.path.join(record_dir, '*.zz')))
 
-    first_record = os.path.basename(tf_records[0])
-    last_record = os.path.basename(tf_records[-1])
-    with timer("Validating from {} to {}".format(first_record, last_record)):
-        dual_net.validate(
-            working_dir, tf_records, checkpoint_name=checkpoint_name,
-            name=validate_name)
-    glbl.prof.end_operation('validate')
+        first_record = os.path.basename(tf_records[0])
+        last_record = os.path.basename(tf_records[-1])
+        with timer("Validating from {} to {}".format(first_record, last_record)):
+            dual_net.validate(
+                working_dir, tf_records, checkpoint_name=checkpoint_name,
+                name=validate_name)
     qmeas.stop_time('validate')
 
 
@@ -155,7 +152,7 @@ def evaluate(
         verbose: 'How verbose the players should be (see selfplay)' = 1):
     qmeas.start_time('evaluate')
     # Too broad.
-    # glbl.prof.set_operation('evaluate')
+    # with iml.prof.operation('evaluate'):
     _ensure_dir_exists(output_dir)
 
     with timer("Loading weights"):
@@ -168,7 +165,6 @@ def evaluate(
         # All the time is spent here.
         winners = evaluation.play_match(
             black_net, white_net, games, readouts, output_dir, verbose)
-    # glbl.prof.end_operation('evaluate')
     qmeas.stop_time('evaluate')
     white_count = 0
     for win in winners:
@@ -216,38 +212,37 @@ def selfplay(
         resign_threshold: 'absolute value of threshold to resign at' = 0.95,
         holdout_pct: 'how many games to hold out for validation' = 0.05):
     qmeas.start_time('selfplay')
-    glbl.prof.set_operation('selfplay')
-    clean_sgf = os.path.join(output_sgf, 'clean')
-    full_sgf = os.path.join(output_sgf, 'full')
-    _ensure_dir_exists(clean_sgf)
-    _ensure_dir_exists(full_sgf)
-    _ensure_dir_exists(output_dir)
-    _ensure_dir_exists(holdout_dir)
+    with iml.prof.operation('selfplay'):
+        clean_sgf = os.path.join(output_sgf, 'clean')
+        full_sgf = os.path.join(output_sgf, 'full')
+        _ensure_dir_exists(clean_sgf)
+        _ensure_dir_exists(full_sgf)
+        _ensure_dir_exists(output_dir)
+        _ensure_dir_exists(holdout_dir)
 
-    with timer("Loading weights from %s ... " % load_file):
-        network = dual_net.DualNetwork(load_file)
+        with timer("Loading weights from %s ... " % load_file):
+            network = dual_net.DualNetwork(load_file)
 
-    with timer("Playing game"):
-        player = selfplay_mcts.play(
-            network, readouts, resign_threshold, verbose)
+        with timer("Playing game"):
+            player = selfplay_mcts.play(
+                network, readouts, resign_threshold, verbose)
 
-    output_name = '{}-{}'.format(int(time.time() * 1000 * 1000), socket.gethostname())
-    game_data = player.extract_data()
-    with gfile.GFile(os.path.join(clean_sgf, '{}.sgf'.format(output_name)), 'w') as f:
-        f.write(player.to_sgf(use_comments=False))
-    with gfile.GFile(os.path.join(full_sgf, '{}.sgf'.format(output_name)), 'w') as f:
-        f.write(player.to_sgf())
+        output_name = '{}-{}'.format(int(time.time() * 1000 * 1000), socket.gethostname())
+        game_data = player.extract_data()
+        with gfile.GFile(os.path.join(clean_sgf, '{}.sgf'.format(output_name)), 'w') as f:
+            f.write(player.to_sgf(use_comments=False))
+        with gfile.GFile(os.path.join(full_sgf, '{}.sgf'.format(output_name)), 'w') as f:
+            f.write(player.to_sgf())
 
-    tf_examples = preprocessing.make_dataset_from_selfplay(game_data)
+        tf_examples = preprocessing.make_dataset_from_selfplay(game_data)
 
-    # Hold out 5% of games for evaluation.
-    if random.random() < holdout_pct:
-        fname = os.path.join(holdout_dir, "{}.tfrecord.zz".format(output_name))
-    else:
-        fname = os.path.join(output_dir, "{}.tfrecord.zz".format(output_name))
+        # Hold out 5% of games for evaluation.
+        if random.random() < holdout_pct:
+            fname = os.path.join(holdout_dir, "{}.tfrecord.zz".format(output_name))
+        else:
+            fname = os.path.join(output_dir, "{}.tfrecord.zz".format(output_name))
 
-    preprocessing.write_tf_examples(fname, tf_examples)
-    glbl.prof.end_operation('selfplay')
+        preprocessing.write_tf_examples(fname, tf_examples)
     qmeas.stop_time('selfplay')
 
 
@@ -263,7 +258,7 @@ def selfplay_cache_model(
     qmeas.start_time('selfplay')
     # This operation type is very broad...
     # Leads to some rather big traces.
-    # glbl.prof.set_operation('selfplay_cache_model')
+    # with iml.prof.operation('selfplay_cache_model'):
     clean_sgf = os.path.join(output_sgf, 'clean')
     full_sgf = os.path.join(output_sgf, 'full')
     _ensure_dir_exists(clean_sgf)
@@ -291,7 +286,6 @@ def selfplay_cache_model(
         fname = os.path.join(output_dir, "{}.tfrecord.zz".format(output_name))
 
     preprocessing.write_tf_examples(fname, tf_examples)
-    # glbl.prof.end_operation('selfplay_cache_model')
     qmeas.stop_time('selfplay')
 
 
@@ -301,46 +295,45 @@ def gather(
         output_directory: 'where to put collected games'='data/training_chunks/',
         examples_per_record: 'how many tf.examples to gather in each chunk'=EXAMPLES_PER_RECORD):
     qmeas.start_time('gather')
-    glbl.prof.set_operation('gather')
-    _ensure_dir_exists(output_directory)
-    models = [model_dir.strip('/')
-              for model_dir in sorted(gfile.ListDirectory(input_directory))[-50:]]
-    with timer("Finding existing tfrecords..."):
-        model_gamedata = {
-            model: gfile.Glob(
-                os.path.join(input_directory, model, '*.tfrecord.zz'))
-            for model in models
-        }
-    print("Found %d models" % len(models))
-    for model_name, record_files in sorted(model_gamedata.items()):
-        print("    %s: %s files" % (model_name, len(record_files)))
+    with iml.prof.operation('gather'):
+        _ensure_dir_exists(output_directory)
+        models = [model_dir.strip('/')
+                  for model_dir in sorted(gfile.ListDirectory(input_directory))[-50:]]
+        with timer("Finding existing tfrecords..."):
+            model_gamedata = {
+                model: gfile.Glob(
+                    os.path.join(input_directory, model, '*.tfrecord.zz'))
+                for model in models
+            }
+        print("Found %d models" % len(models))
+        for model_name, record_files in sorted(model_gamedata.items()):
+            print("    %s: %s files" % (model_name, len(record_files)))
 
-    meta_file = os.path.join(output_directory, 'meta.txt')
-    try:
-        with gfile.GFile(meta_file, 'r') as f:
-            already_processed = set(f.read().split())
-    except tf.errors.NotFoundError:
-        already_processed = set()
+        meta_file = os.path.join(output_directory, 'meta.txt')
+        try:
+            with gfile.GFile(meta_file, 'r') as f:
+                already_processed = set(f.read().split())
+        except tf.errors.NotFoundError:
+            already_processed = set()
 
-    num_already_processed = len(already_processed)
+        num_already_processed = len(already_processed)
 
-    for model_name, record_files in sorted(model_gamedata.items()):
-        if set(record_files) <= already_processed:
-            continue
-        print("Gathering files for %s:" % model_name)
-        for i, example_batch in enumerate(
-                tqdm(preprocessing.shuffle_tf_examples(examples_per_record, record_files))):
-            output_record = os.path.join(output_directory,
-                                         '{}-{}.tfrecord.zz'.format(model_name, str(i)))
-            preprocessing.write_tf_examples(
-                output_record, example_batch, serialize=False)
-        already_processed.update(record_files)
+        for model_name, record_files in sorted(model_gamedata.items()):
+            if set(record_files) <= already_processed:
+                continue
+            print("Gathering files for %s:" % model_name)
+            for i, example_batch in enumerate(
+                    tqdm(preprocessing.shuffle_tf_examples(examples_per_record, record_files))):
+                output_record = os.path.join(output_directory,
+                                             '{}-{}.tfrecord.zz'.format(model_name, str(i)))
+                preprocessing.write_tf_examples(
+                    output_record, example_batch, serialize=False)
+            already_processed.update(record_files)
 
-    print("Processed %s new files" %
-          (len(already_processed) - num_already_processed))
-    with gfile.GFile(meta_file, 'w') as f:
-        f.write('\n'.join(sorted(already_processed)))
-    glbl.prof.end_operation('gather')
+        print("Processed %s new files" %
+              (len(already_processed) - num_already_processed))
+        with gfile.GFile(meta_file, 'w') as f:
+            f.write('\n'.join(sorted(already_processed)))
     qmeas.stop_time('gather')
 
 

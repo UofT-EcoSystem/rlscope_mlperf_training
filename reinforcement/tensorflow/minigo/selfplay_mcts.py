@@ -22,7 +22,7 @@ import coords
 import go
 from gtp_wrapper import MCTSPlayer
 
-from profiler import glbl
+import iml_profiler.api as iml
 
 SIMULTANEOUS_LEAVES = 8
 
@@ -51,41 +51,37 @@ def play(network, readouts, resign_threshold, verbosity=0):
     prob, val = network.run(first_node.position)
     first_node.incorporate_results(prob, val, first_node)
 
-    while True:
-        glbl.prof.set_operation('selfplay_loop')
-        start = time.time()
-        player.root.inject_noise()
-        current_readouts = player.root.N
-        # we want to do "X additional readouts", rather than "up to X readouts".
-        while player.root.N < current_readouts + readouts:
-            player.tree_search()
+    with iml.prof.operation('selfplay_loop'):
+        while True:
+            start = time.time()
+            player.root.inject_noise()
+            current_readouts = player.root.N
+            # we want to do "X additional readouts", rather than "up to X readouts".
+            while player.root.N < current_readouts + readouts:
+                player.tree_search()
 
-        if (verbosity >= 3):
-            print(player.root.position)
-            print(player.root.describe())
+            if (verbosity >= 3):
+                print(player.root.position)
+                print(player.root.describe())
 
-        if player.should_resign():
-            player.set_result(-1 * player.root.position.to_play,
-                              was_resign=True)
-            glbl.prof.end_operation('selfplay_loop')
-            break
-        move = player.pick_move()
-        player.play_move(move)
-        if player.root.is_done():
-            player.set_result(player.root.position.result(), was_resign=False)
-            glbl.prof.end_operation('selfplay_loop')
-            break
+            if player.should_resign():
+                player.set_result(-1 * player.root.position.to_play,
+                                  was_resign=True)
+                break
+            move = player.pick_move()
+            player.play_move(move)
+            if player.root.is_done():
+                player.set_result(player.root.position.result(), was_resign=False)
+                break
 
-        if (verbosity >= 2) or (verbosity >= 1 and player.root.position.n % 10 == 9):
-            print("Q: {:.5f}".format(player.root.Q))
-            dur = time.time() - start
-            print("%d: %d readouts, %.3f s/100. (%.2f sec)" % (
-                player.root.position.n, readouts, dur / readouts * 100.0, dur), flush=True)
-        if verbosity >= 3:
-            print("Played >>",
-                  coords.to_kgs(coords.from_flat(player.root.fmove)))
-
-        glbl.prof.end_operation('selfplay_loop')
+            if (verbosity >= 2) or (verbosity >= 1 and player.root.position.n % 10 == 9):
+                print("Q: {:.5f}".format(player.root.Q))
+                dur = time.time() - start
+                print("%d: %d readouts, %.3f s/100. (%.2f sec)" % (
+                    player.root.position.n, readouts, dur / readouts * 100.0, dur), flush=True)
+            if verbosity >= 3:
+                print("Played >>",
+                      coords.to_kgs(coords.from_flat(player.root.fmove)))
 
     if verbosity >= 2:
         print("%s: %.3f" % (player.result_string, player.root.Q), file=sys.stderr)

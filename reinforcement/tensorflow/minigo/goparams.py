@@ -106,9 +106,3 @@ _set('TRIES_PER_PUZZLE', 1)
 _set('SP_READOUTS', 200)
 _set('TERMINATION_ACCURACY', 100)
 
-# IML: DON'T create multiple tf.Session objects.
-# It's annoying (but not imposssible) to create support for multiple tf.Session objects.
-# However, I don't see a good reason to do so
-# (tf.Session objects are typically created for modularity reasons, nothing else).
-# SINGLE_SESSION = True
-SINGLE_SESSION = False

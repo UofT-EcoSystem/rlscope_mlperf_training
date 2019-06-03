@@ -36,7 +36,7 @@ import features
 import preprocessing
 import symmetries
 import go
-from profiler import glbl
+import iml_profiler.api as iml
 
 import goparams
 
@@ -68,12 +68,7 @@ class DualNetwork():
         self.inference_output = None
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
-        if not goparams.SINGLE_SESSION:
-            # JAMES TODO: is Session being used to manage loading multiple policy/value Graph's at the same time?
-            self.sess = tf.Session(graph=tf.Graph(), config=config)
-            # glbl.prof.set_session(self.sess)
-        else:
-            self.sess = tf.get_default_session()
+        self.sess = tf.Session(graph=tf.Graph(), config=config)
         self.initialize_graph()
 
     def initialize_graph(self):
@@ -82,19 +77,18 @@ class DualNetwork():
         else:
             op = 'init_network'
 
-        glbl.prof.set_operation(op)
-        with self.sess.graph.as_default():
-            features, labels = get_inference_input()
-            estimator_spec = _model_fn(features, labels,
-                                       tf.estimator.ModeKeys.PREDICT, self.hparams,
-                                       debug=self.debug, name=self.name)
-            self.inference_input = features
-            self.inference_output = estimator_spec.predictions
-            if self.save_file is not None:
-                self.initialize_weights(self.save_file)
-            else:
-                self.sess.run(tf.global_variables_initializer())
-        glbl.prof.end_operation(op)
+        with iml.prof.operation(op):
+            with self.sess.graph.as_default():
+                features, labels = get_inference_input()
+                estimator_spec = _model_fn(features, labels,
+                                           tf.estimator.ModeKeys.PREDICT, self.hparams,
+                                           debug=self.debug, name=self.name)
+                self.inference_input = features
+                self.inference_output = estimator_spec.predictions
+                if self.save_file is not None:
+                    self.initialize_weights(self.save_file)
+                else:
+                    self.sess.run(tf.global_variables_initializer())
 
     def initialize_weights(self, save_file):
         """Initialize the weights from the given save_file.
@@ -336,13 +330,8 @@ def bootstrap(working_dir, **hparams):
     # order to run the full train pipeline for 1 step.
     estimator_initial_checkpoint_name = 'model.ckpt-1'
     save_file = os.path.join(working_dir, estimator_initial_checkpoint_name)
-    if not goparams.SINGLE_SESSION:
-        sess = tf.Session(graph=tf.Graph())
-        # glbl.prof.set_session(sess)
-        graph = sess.graph
-    else:
-        sess = tf.get_default_session()
-        graph = tf.get_default_graph()
+    sess = tf.Session(graph=tf.Graph())
+    graph = sess.graph
     with graph.as_default():
         features, labels = get_inference_input()
         model_fn(features, labels, tf.estimator.ModeKeys.PREDICT, hparams)

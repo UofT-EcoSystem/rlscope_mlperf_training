@@ -17,7 +17,7 @@ import evaluation
 from gtp_wrapper import MCTSPlayer
 import sys
 
-from profiler import glbl
+import iml_profiler.api as iml
 
 import os
 import glob
@@ -73,14 +73,14 @@ def report_for_puzzles(model_path, sgf_files, rounds, tries_per_move=1):
   sum_ratings = 0
   network = dual_net.DualNetwork(model_path)
   # Too broad.
-  # glbl.prof.set_operation('puzzle')
+  # with iml.prof.operation('puzzle'):
   for attempt in range(rounds):
     log(">> attempt = {attempt}".format(
         attempt=attempt))
     # JAMES TODO: use tqdm to add progress bars (i.e. why's this taking so long..?)
     for filename_i, filename in enumerate(tqdm(sgf_files, 'puzzle_file')):
       # Too broad.
-      # glbl.prof.set_operation('puzzle_file')
+      # with iml.prof.operation('puzzle_file'):
       log("  >> i = {i}, filename = {f}".format(
           i=filename_i,
           f=filename))
@@ -91,8 +91,6 @@ def report_for_puzzles(model_path, sgf_files, rounds, tries_per_move=1):
       sum_ratings += sum(move_ratings)
       results[filename].append(sum(move_ratings) / len(move_ratings))
       report_model_results({model_path: results})
-      # glbl.prof.end_operation('puzzle_file')
-  # glbl.prof.end_operation('puzzle')
   return results, sum_ratings * 1.0 / tries
 
 
@@ -151,22 +149,20 @@ def predict_move(filename, network, tries_per_move=1, readouts=1000):
   correct = 0
   move_ratings = []
   for position_w_context_i, position_w_context in enumerate(tqdm(replay, 'predict_move_loop')):
-      glbl.prof.set_operation('predict_move_loop')
-      if position_w_context.next_move is None:
-          glbl.prof.end_operation('predict_move_loop')
-          continue
-      log("    >> predict_position: position_w_context_i = {i}".format(
-          i=position_w_context_i,
-          ))
+      with iml.prof.operation('predict_move_loop'):
+          if position_w_context.next_move is None:
+              continue
+          log("    >> predict_position: position_w_context_i = {i}".format(
+              i=position_w_context_i,
+              ))
 
-      num_correct = 0
-      for i in range(tries_per_move):
-        move, correct_move, is_correct = predict_position(position_w_context, player, readouts=readouts)
-        if is_correct:
-          num_correct += 1
-      move_ratings.append(num_correct * 1.0 / tries_per_move)
-      print('RATING: ', sum(move_ratings) / len(move_ratings))
-      glbl.prof.end_operation('predict_move_loop')
+          num_correct = 0
+          for i in range(tries_per_move):
+            move, correct_move, is_correct = predict_position(position_w_context, player, readouts=readouts)
+            if is_correct:
+              num_correct += 1
+          move_ratings.append(num_correct * 1.0 / tries_per_move)
+          print('RATING: ', sum(move_ratings) / len(move_ratings))
   return move_ratings
 
 

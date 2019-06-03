@@ -30,16 +30,16 @@ function cleanup() {
 
 UTIL_SAMPLER_PID=
 function ctrl_c() {
-    echo "> Received SIGINT/SIGTERM"
+    echo "> Cleanup iml-util-sampler"
     cleanup
 }
-trap ctrl_c SIGINT SIGTERM
+trap ctrl_c EXIT
 
 #NUM_GENERATIONS="$(python3 $READ_JSON_PY $PARAMS_FILE --attr NUM_GENERATIONS --default 1000)"
 NUM_GENERATIONS="$(python3 $READ_JSON_PY $PARAMS_FILE --attr NUM_GENERATIONS)"
 echo "BASE_DIR = $BASE_DIR"
 base_dir="$(python3 $READ_JSON_PY $PARAMS_FILE --attr BASE_DIR --allow-env)"
-python3 -m scripts.utilization_sampler "$@" --iml-directory $base_dir &
+iml-util-sampler "$@" --iml-directory $base_dir &
 UTIL_SAMPLER_PID=$!
 
 GOPARAMS=$PARAMS_FILE python3 loop_init.py "$@"
@@ -64,5 +64,3 @@ else
    echo "$FILE does not exist; looping again."
 fi
 done
-
-cleanup

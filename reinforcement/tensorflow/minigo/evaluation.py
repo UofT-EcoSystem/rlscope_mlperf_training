@@ -22,8 +22,7 @@ from gtp_wrapper import MCTSPlayer
 import goparams
 from tqdm import tqdm
 
-from profiler import glbl
-from parser.common import print_stacktrace
+import iml_profiler.api as iml
 
 SIMULTANEOUS_LEAVES = 8
 
@@ -54,67 +53,64 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
         # About 15M / 2800 calls traced... so a lot but not enormous.
         print("> game={i}".format(
             i=i))
-        glbl.prof.set_operation('eval_game')
+        with iml.prof.operation('eval_game'):
+            num_move = 0  # The move number of the current game
 
-        num_move = 0  # The move number of the current game
+            black.initialize_game()
+            white.initialize_game()
 
-        black.initialize_game()
-        white.initialize_game()
+            while True:
+                start = time.time()
+                active = white if num_move % 2 else black
+                inactive = black if num_move % 2 else white
 
-        while True:
-            start = time.time()
-            active = white if num_move % 2 else black
-            inactive = black if num_move % 2 else white
+                current_readouts = active.root.N
+                while active.root.N < current_readouts + readouts:
+                    active.tree_search()
 
-            current_readouts = active.root.N
-            while active.root.N < current_readouts + readouts:
-                active.tree_search()
+                # print some stats on the search
+                if verbosity >= 3:
+                    print(active.root.position)
 
-            # print some stats on the search
-            if verbosity >= 3:
-                print(active.root.position)
+                # First, check the roots for hopeless games.
+                if active.should_resign():  # Force resign
+                    active.set_result(-1 *
+                                      active.root.position.to_play, was_resign=True)
+                    inactive.set_result(
+                        active.root.position.to_play, was_resign=True)
 
-            # First, check the roots for hopeless games.
-            if active.should_resign():  # Force resign
-                active.set_result(-1 *
-                                  active.root.position.to_play, was_resign=True)
-                inactive.set_result(
-                    active.root.position.to_play, was_resign=True)
+                if active.is_done():
+                    fname = "{:d}-{:s}-vs-{:s}-{:d}.sgf".format(int(time.time()),
+                                                                white_name, black_name, i)
+                    if active.result_string is None:
+                      # This is an exceptionally  rare corner case where we don't get a winner.
+                      # Our temporary solution is to just drop this game.
+                      print("> play_match: RARE CORNER CASE") # NEVER HAPPENS
+                      break
+                    winners.append(active.result_string[0])
+                    with open(os.path.join(sgf_dir, fname), 'w') as _file:
+                        sgfstr = sgf_wrapper.make_sgf(active.position.recent,
+                                                      active.result_string, black_name=black_name,
+                                                      white_name=white_name)
+                        _file.write(sgfstr)
+                    print("Finished game", i, active.result_string)
+                    break
 
-            if active.is_done():
-                fname = "{:d}-{:s}-vs-{:s}-{:d}.sgf".format(int(time.time()),
-                                                            white_name, black_name, i)
-                if active.result_string is None:
-                  # This is an exceptionally  rare corner case where we don't get a winner.
-                  # Our temporary solution is to just drop this game.
-                  print("> play_match: RARE CORNER CASE") # NEVER HAPPENS
-                  break
-                winners.append(active.result_string[0])
-                with open(os.path.join(sgf_dir, fname), 'w') as _file:
-                    sgfstr = sgf_wrapper.make_sgf(active.position.recent,
-                                                  active.result_string, black_name=black_name,
-                                                  white_name=white_name)
-                    _file.write(sgfstr)
-                print("Finished game", i, active.result_string)
-                break
+                move = active.pick_move()
+                # print('DBUG Picked move: ', move, active, num_move)
+                active.play_move(move)
+                inactive.play_move(move)
 
-            move = active.pick_move()
-            # print('DBUG Picked move: ', move, active, num_move)
-            active.play_move(move)
-            inactive.play_move(move)
+                dur = time.time() - start
+                num_move += 1
 
-            dur = time.time() - start
-            num_move += 1
-
-            if (verbosity > 1) or (verbosity == 1 and num_move % 10 == 9):
-                timeper = (dur / readouts) * 100.0
-                print(active.root.position)
-                print("%d: %d readouts, %.3f s/100. (%.2f sec)" % (num_move,
-                                                                   readouts,
-                                                                   timeper,
-                                                                   dur))
-
-        glbl.prof.end_operation('eval_game')
+                if (verbosity > 1) or (verbosity == 1 and num_move % 10 == 9):
+                    timeper = (dur / readouts) * 100.0
+                    print(active.root.position)
+                    print("%d: %d readouts, %.3f s/100. (%.2f sec)" % (num_move,
+                                                                       readouts,
+                                                                       timeper,
+                                                                       dur))
 
     return winners
 

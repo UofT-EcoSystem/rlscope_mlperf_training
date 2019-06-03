@@ -27,8 +27,6 @@ import preprocessing
 import subprocess
 import pprint
 
-from profiler import profilers
-
 import glob
 from tensorflow import gfile
 
@@ -40,7 +38,7 @@ import predict_moves
 
 import qmeas
 
-from profiler import glbl
+import iml_profiler.api as iml
 
 SEED = None
 ITERATION = None
@@ -136,7 +134,7 @@ def main_():
       #procs.append(subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE))
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
       # JAMES TODO: forward set_phase to children.
-      iml_argv = profilers.iml_argv(glbl.get_profiler())
+      iml_argv = iml.iml_argv(iml.prof)
       cmd = "GOPARAMS={GOPARAMS} python3 selfplay_worker.py {BASE_DIR} {seed} --worker-id {id} {iml_args}".format(
           GOPARAMS=os.environ['GOPARAMS'],
           BASE_DIR=BASE_DIR,
@@ -226,38 +224,31 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("seed", type=int, help="Seed")
     parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
-    profilers.add_iml_arguments(parser)
+    iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
-    if goparams.SINGLE_SESSION:
-        glbl.init_session()
+    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
 
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
-    glbl.prof.set_process_name('loop_selfplay')
 
-    # glbl.prof.set_phase('collect_simulator') # <-- this call triggers GPU allocation
-    glbl.prof.set_phase('selfplay_workers') # <-- this call triggers GPU allocation
+    with iml.prof.profile(process_name='loop_selfplay', phase_name='selfplay_workers'):
 
-    glbl.prof.start()
+        SEED = int(sys.argv[1])
+        ITERATION = int(sys.argv[2])
 
-    SEED = int(sys.argv[1])
-    ITERATION = int(sys.argv[2])
+        # get TF logger
+        log = logging.getLogger('tensorflow')
+        log.setLevel(logging.DEBUG)
 
-    # get TF logger
-    log = logging.getLogger('tensorflow')
-    log.setLevel(logging.DEBUG)
+        # create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # create formatter and add it to the handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler('tensorflow.log')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        log.addHandler(fh)
+        main_()
 
-    # create file handler which logs even debug messages
-    fh = logging.FileHandler('tensorflow.log')
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    log.addHandler(fh)
-    main_()
-
-    glbl.prof.stop()
     qmeas.end()
 

@@ -37,9 +37,7 @@ import logging
 
 import goparams
 import predict_games
-from profiler import glbl
-
-from profiler import profilers
+import iml_profiler.api as iml
 
 import qmeas
 
@@ -248,8 +246,7 @@ def rl_loop():
     # JAMES NOTE: this runs very fast.
     new_model = train()
 
-    # glbl.prof.set_phase('evaluate_improvement')
-    glbl.prof.set_phase('evaluate')
+    iml.prof.set_phase('evaluate')
 
     if goparams.EVALUATE_PUZZLES:
 
@@ -292,7 +289,7 @@ def rl_loop():
           f.write('\n' + str(total_pct) + '\n')
 
 
-    # JAMES TODO: with glbl.prof.use_num_calls(3000):
+    # JAMES TODO: with iml.prof.use_num_calls(3000):
     # TODO: appears to be running multiple evaluations? (expect 3 games, saw more.)
     if goparams.EVALUATE_MODELS:
 
@@ -315,41 +312,35 @@ if __name__ == '__main__':
     parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
     # parser.add_argument("base_dir", type=int, help="Iteration of self-play/train-eval")
     # parser.add_argument("worker_id", type=int, help="Worker id")
-    profilers.add_iml_arguments(parser)
+    iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    glbl.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
-    if goparams.SINGLE_SESSION:
-        glbl.init_session()
+    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
 
-    glbl.prof.set_process_name("loop_train_eval")
-    glbl.prof.set_phase('sgd_updates')
-    glbl.prof.start()
+    with iml.prof.profile(process_name="loop_train_eval", phase_name='sgd_updates'):
+        #tf.logging.set_verbosity(tf.logging.INFO)
+        seed = args.seed
+        iteration = args.iteration
+        print('Setting random seed, iteration = ', seed, iteration)
+        seed = hash(seed) + iteration
+        print("training seed: ", seed)
+        random.seed(seed)
+        tf.set_random_seed(seed)
+        numpy.random.seed(seed)
 
-    #tf.logging.set_verbosity(tf.logging.INFO)
-    seed = args.seed
-    iteration = args.iteration
-    print('Setting random seed, iteration = ', seed, iteration)
-    seed = hash(seed) + iteration
-    print("training seed: ", seed)
-    random.seed(seed)
-    tf.set_random_seed(seed)
-    numpy.random.seed(seed)
+        qmeas.start(os.path.join(BASE_DIR, 'stats'))
+        # get TF logger
+        log = logging.getLogger('tensorflow')
+        log.setLevel(logging.DEBUG)
 
-    qmeas.start(os.path.join(BASE_DIR, 'stats'))
-    # get TF logger
-    log = logging.getLogger('tensorflow')
-    log.setLevel(logging.DEBUG)
+        # create formatter and add it to the handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # create formatter and add it to the handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        # create file handler which logs even debug messages
+        fh = logging.FileHandler('tensorflow.log')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        log.addHandler(fh)
+        rl_loop()
+        qmeas.end()
+        mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=iteration)
 
-    # create file handler which logs even debug messages
-    fh = logging.FileHandler('tensorflow.log')
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(formatter)
-    log.addHandler(fh)
-    rl_loop()
-    qmeas.end()
-    mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=iteration)
-
-    glbl.prof.stop()

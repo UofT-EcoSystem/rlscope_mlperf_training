@@ -231,7 +231,7 @@ if __name__ == '__main__':
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
 
-    with iml.prof.profile(process_name='loop_selfplay', phase_name='selfplay_workers'):
+    with iml.prof.profile(process_name='loop_selfplay', phase_name='selfplay_workers', handle_utilization_sampler=False):
 
         SEED = int(sys.argv[1])
         ITERATION = int(sys.argv[2])

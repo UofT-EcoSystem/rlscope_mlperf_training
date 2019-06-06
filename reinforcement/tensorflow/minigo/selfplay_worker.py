@@ -293,7 +293,7 @@ if __name__ == '__main__':
 
     process_name = "selfplay_worker_{i}".format(
         i=args.worker_id)
-    with iml.prof.profile(process_name=process_name, phase_name=process_name):
+    with iml.prof.profile(process_name=process_name, phase_name=process_name, handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
         seed = args.seed

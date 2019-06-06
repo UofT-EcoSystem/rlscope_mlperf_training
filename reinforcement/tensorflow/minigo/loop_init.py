@@ -124,7 +124,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
 
-    with iml.prof.profile(process_name='loop_init', phase_name='bootstrap'):
+    with iml.prof.profile(process_name='loop_init', phase_name='bootstrap', handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
         qmeas.start(os.path.join(BASE_DIR, 'stats'))

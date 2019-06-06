@@ -316,7 +316,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
 
-    with iml.prof.profile(process_name="loop_train_eval", phase_name='sgd_updates'):
+    with iml.prof.profile(process_name="loop_train_eval", phase_name='sgd_updates', handle_utilization_sampler=False):
         #tf.logging.set_verbosity(tf.logging.INFO)
         seed = args.seed
         iteration = args.iteration

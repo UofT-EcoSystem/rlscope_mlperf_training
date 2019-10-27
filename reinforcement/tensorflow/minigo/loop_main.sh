@@ -13,7 +13,9 @@ shift 2
 FILE="TERMINATE_FLAG"
 rm -f $FILE
 
-set -x
+if [ "$DEBUG" == 'yes' ]; then
+    set -x
+fi
 
 READ_JSON_PY="read_json.py"
 
@@ -35,14 +37,23 @@ function ctrl_c() {
 }
 trap ctrl_c EXIT
 
-#NUM_GENERATIONS="$(python3 $READ_JSON_PY $PARAMS_FILE --attr NUM_GENERATIONS --default 1000)"
-NUM_GENERATIONS="$(python3 $READ_JSON_PY $PARAMS_FILE --attr NUM_GENERATIONS)"
+if [ "$IML_DIRECTORY" == "" ]; then
+    echo "IML ERROR: Expected \"export IML_DIRECTORY=...\" to be set to directory to store trace-files, but it wasn't set!"
+    exit 1
+fi
+
+if [ "$BASE_DIR" == "" ]; then
+    echo "IML ERROR: Expected \"export BASE_DIR=...\" to be set from reinforcement/tensorflow/run.sh, but it wasn't set!"
+    exit 1
+fi
 echo "BASE_DIR = $BASE_DIR"
-base_dir="$(python3 $READ_JSON_PY $PARAMS_FILE --attr BASE_DIR --allow-env)"
-iml-util-sampler "$@" --iml-directory $base_dir &
+echo "IML_DIRECTORY = $IML_DIRECTORY"
+
+NUM_GENERATIONS="$(python3 $READ_JSON_PY $PARAMS_FILE --attr NUM_GENERATIONS)"
+iml-util-sampler "$@" --iml-directory $IML_DIRECTORY --iml-root-pid $$ &
 UTIL_SAMPLER_PID=$!
 
-GOPARAMS=$PARAMS_FILE python3 loop_init.py "$@"
+GOPARAMS=$PARAMS_FILE iml-prof python3 loop_init.py --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@"
 # JAMES NOTE: I'm not sure WHY they have a loop here.
 # If the test-set accuracy >= TERMINATION_ACCURACY (= 0.40), then
 # training will terminate.
@@ -50,9 +61,9 @@ GOPARAMS=$PARAMS_FILE python3 loop_init.py "$@"
 # If this were to have a hyperparameter, it should be called NUM_GENERATIONS.
 for i in $(seq 0 $NUM_GENERATIONS);
 do
-GOPARAMS=$PARAMS_FILE python3 loop_selfplay.py $SEED $i "$@" 2>&1
+GOPARAMS=$PARAMS_FILE iml-prof python3 loop_selfplay.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
 
-GOPARAMS=$PARAMS_FILE python3 loop_train_eval.py $SEED $i "$@" 2>&1
+GOPARAMS=$PARAMS_FILE iml-prof python3 loop_train_eval.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
 
 
 

@@ -170,6 +170,7 @@ def evaluate(
     for win in winners:
       if 'W' in win or 'w' in win:
         white_count += 1
+    # NOTE: Returns the percent of games that white_model (SECOND model argument) won
     return white_count * 1.0 / games
 
     # qmeas.report_profiler()
@@ -183,15 +184,21 @@ def evaluate_evenly(
         verbose: 'How verbose the players should be (see selfplay)' = 1):
   ''' Returns the white win rate; playes 'games' number of games on both sides. '''
   try:
-    # JAMES NOTE: This thing calls evaluate TWICE.
-    result = (evaluate(black_model, white_model, output_dir, readouts, games, verbose) + (1 - evaluate(white_model, black_model, output_dir, readouts, games, verbose)))/ 2.0
+    # NOTE: This code calls evaluate TWICE.
+    # Percent of times "white_model" won.
+    black_vs_white = evaluate(black_model, white_model, output_dir, readouts, games, verbose)
+    # Percent of times "black_model" won.
+    white_vs_black = evaluate(white_model, black_model, output_dir, readouts, games, verbose)
+    # Average number of times "white_model" won, regardless of whether "white_model" played as white/black.
+    # This is to make sure the model performs well regardless of being white/black to start the game.
+    result = ( black_vs_white + (1 - white_vs_black))/ 2.0
   except TypeError:
     # It is remotely possible that in weird twist of fate results in a type
     # error... Possibly due to weird corner cases in the evaluation...
     # Our fall back will be to try agian.
 
     print("> evaluate_evenly: GOT A TYPE ERROR") # NEVER HAPPENS
-    import ipdb; ipdb.set_trace()
+    raise RuntimeError("IML: not sure how to handle this.")
     result = (evaluate(black_model, white_model, output_dir, readouts, games, verbose) + (1 - evaluate(white_model, black_model, output_dir, readouts, games, verbose)))/ 2.0
     # should this really happen twice, the world really doesn't
     # want this to be successful... and we will raise the error.

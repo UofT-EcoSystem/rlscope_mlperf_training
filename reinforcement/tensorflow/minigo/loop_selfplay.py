@@ -108,7 +108,7 @@ def get_latest_model():
 
 
 
-def main_():
+def main_(seed, generation):
     """Run the reinforcement learning loop
 
     This tries to create a realistic way to run the reinforcement learning with
@@ -134,10 +134,11 @@ def main_():
       #procs.append(subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE))
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
       # JAMES TODO: forward set_phase to children.
-      iml_argv = iml.iml_argv(iml.prof)
-      cmd = "GOPARAMS={GOPARAMS} python3 selfplay_worker.py {BASE_DIR} {seed} --worker-id {id} {iml_args}".format(
+      iml_argv, iml_env = iml.iml_argv_and_env(iml.prof)
+      cmd = "GOPARAMS={GOPARAMS} iml-prof python3 selfplay_worker.py --base-dir {BASE_DIR} --seed {seed} --generation {g} --worker-id {id} {iml_args}".format(
           GOPARAMS=os.environ['GOPARAMS'],
           BASE_DIR=BASE_DIR,
+          g=generation,
           id=i,
           seed=worker_seed,
           iml_args=" ".join(iml_argv),
@@ -145,7 +146,7 @@ def main_():
       print("> CMDLINE @ worker_{i}: {cmd}".format(
           i=i, cmd=cmd))
       pprint.pprint({'iml_argv': iml_argv, 'cmd':cmd})
-      procs.append(subprocess.Popen(cmd, shell=True))
+      procs.append(subprocess.Popen(cmd, shell=True, env=iml_env))
 
     selfplay_dir = os.path.join(SELFPLAY_DIR, model_name)
     def count_games():
@@ -221,34 +222,44 @@ def main_():
 
 
 if __name__ == '__main__':
+    logging.info(("> MINIGO CMD:\n"
+                  "  $ {cmd}"
+                  ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("seed", type=int, help="Seed")
-    parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
+    parser.add_argument("--seed", type=int, help="Seed")
+    parser.add_argument("--generation", type=int, help="Go generation")
     iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    iml.handle_iml_args(parser, args, reports_progress=False)
 
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
 
-    with iml.prof.profile(process_name='loop_selfplay', phase_name='selfplay_workers', handle_utilization_sampler=False):
+    phase_name = 'selfplay_workers_generation_{g}'.format(
+        g=args.generation,
+    )
+    process_name = 'loop_selfplay_generation_{g}'.format(
+        g=args.generation,
+    )
+    with iml.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
 
-        SEED = int(sys.argv[1])
-        ITERATION = int(sys.argv[2])
+        SEED = args.seed
+        ITERATION = args.generation
 
-        # get TF logger
-        log = logging.getLogger('tensorflow')
-        log.setLevel(logging.DEBUG)
+        if goparams.TENSORFLOW_LOGGING:
+            # get TF logger
+            log = logging.getLogger('tensorflow')
+            log.setLevel(logging.DEBUG)
 
-        # create formatter and add it to the handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # create formatter and add it to the handlers
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # create file handler which logs even debug messages
-        fh = logging.FileHandler('tensorflow.log')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        log.addHandler(fh)
-        main_()
+            # create file handler which logs even debug messages
+            fh = logging.FileHandler('tensorflow.log')
+            fh.setLevel(logging.DEBUG)
+            fh.setFormatter(formatter)
+            log.addHandler(fh)
+        main_(args.seed, args.generation)
 
     qmeas.end()
 

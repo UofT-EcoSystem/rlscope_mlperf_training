@@ -218,7 +218,7 @@ def echo():
     pass  # Flags are echo'd in the ifmain block below.
 
 
-def rl_loop():
+def rl_loop(generation):
     """Run the reinforcement learning loop
 
     This tries to create a realistic way to run the reinforcement learning with
@@ -246,9 +246,25 @@ def rl_loop():
     # JAMES NOTE: this runs very fast.
     new_model = train()
 
-    iml.prof.set_phase('evaluate')
 
     if goparams.EVALUATE_PUZZLES:
+      # JAMES NOTE: this code evaluates the newly trained model to see whether it
+      # reaches the "target accuracy" as defined by MLPerf.
+      # If the target accuracy is reached, the minigo benchmark "stops the clock" and
+      # records that as its total training time.
+      # We DON'T include this in our profiling, since its a termination condition that
+      # is specific to MLPerf.
+      #
+      # The "AlphaGo Zero" paper states that it trained for "700,000" timesteps.
+      # It's unclear what terminating condition they used during training.
+      # Presumably, they can only evaluate "training progress" by playing games against
+      # other pre-trained known-to-be-good models.  For example, playing against the original
+      # pre-trained AlphaGo, or a non-neural network agent.  The "test" performance happens when
+      # the model finally plays against an expert human.
+      # https://deepmind.com/documents/260/alphazero_preprint.pdf
+      iml.prof.set_phase('evaluate_termination_generation_{g}'.format(
+          g=generation,
+      ))
 
       # JAMES TODO: We'd like to nest 'load_network'/'init_network' inside 'puzzle' here...
       qmeas.start_time('puzzle')
@@ -265,7 +281,7 @@ def rl_loop():
       result, total_pct = predict_games.report_for_puzzles(new_model_path, sgf_files, 2, tries_per_move=1)
       print('accuracy = ', total_pct)
       mlperf_log.minigo_print(key=mlperf_log.EVAL_ACCURACY,
-                              value={"epoch": iteration, "value": total_pct})
+                              value={"epoch": generation, "value": total_pct})
       mlperf_log.minigo_print(key=mlperf_log.EVAL_TARGET,
                               value=goparams.TERMINATION_ACCURACY)
 
@@ -288,10 +304,16 @@ def rl_loop():
           f.write(repr(result))
           f.write('\n' + str(total_pct) + '\n')
 
-
     # JAMES TODO: with iml.prof.use_num_calls(3000):
     # TODO: appears to be running multiple evaluations? (expect 3 games, saw more.)
     if goparams.EVALUATE_MODELS:
+      # JAMES NOTE: Evaluate whether the newly trained candidate model out-performs the model from
+      # "last generation" (i.e. win percentage > 55%).
+      # If it DOESN'T, we recollect data using the OLD model.
+
+      iml.prof.set_phase('evaluate_candidate_model_generation_{g}'.format(
+          g=generation,
+      ))
 
       # JAMES NOTE: Use the same number of "readouts" as during self-play.
       # NOTE: "readouts" = # of MCTS nodes that get "expanded" BEFORE choosing a move.
@@ -304,43 +326,53 @@ def rl_loop():
       if not evaluate(model_name, new_model, readouts=readouts):
         bury_latest_model()
 
-
-
-if __name__ == '__main__':
+def main_func():
+    logging.info(("> MINIGO CMD:\n"
+                  "  $ {cmd}"
+                  ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("seed", type=int, help="Seed")
-    parser.add_argument("iteration", type=int, help="Iteration of self-play/train-eval")
-    # parser.add_argument("base_dir", type=int, help="Iteration of self-play/train-eval")
+    parser.add_argument("--seed", type=int, help="Seed")
+    parser.add_argument("--generation", type=int, help="Go generation")
+    # parser.add_argument("base_dir", type=int, help="generation of self-play/train-eval")
     # parser.add_argument("worker_id", type=int, help="Worker id")
     iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    iml.handle_iml_args(parser, args, reports_progress=False)
 
-    with iml.prof.profile(process_name="loop_train_eval", phase_name='sgd_updates', handle_utilization_sampler=False):
+    phase_name = 'sgd_updates_generation_{g}'.format(
+        g=args.generation,
+    )
+    process_name = "loop_train_eval_generation_{g}".format(
+        g=args.generation,
+    )
+    with iml.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
         #tf.logging.set_verbosity(tf.logging.INFO)
         seed = args.seed
-        iteration = args.iteration
-        print('Setting random seed, iteration = ', seed, iteration)
-        seed = hash(seed) + iteration
+        generation = args.generation
+        print('Setting random seed, generation = ', seed, generation)
+        seed = hash(seed) + generation
         print("training seed: ", seed)
         random.seed(seed)
         tf.set_random_seed(seed)
         numpy.random.seed(seed)
 
         qmeas.start(os.path.join(BASE_DIR, 'stats'))
-        # get TF logger
-        log = logging.getLogger('tensorflow')
-        log.setLevel(logging.DEBUG)
+        if goparams.TENSORFLOW_LOGGING:
+            # get TF logger
+            log = logging.getLogger('tensorflow')
+            log.setLevel(logging.DEBUG)
 
-        # create formatter and add it to the handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # create formatter and add it to the handlers
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # create file handler which logs even debug messages
-        fh = logging.FileHandler('tensorflow.log')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        log.addHandler(fh)
-        rl_loop()
+            # create file handler which logs even debug messages
+            fh = logging.FileHandler('tensorflow.log')
+            fh.setLevel(logging.DEBUG)
+            fh.setFormatter(formatter)
+            log.addHandler(fh)
+        rl_loop(args.generation)
         qmeas.end()
-        mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=iteration)
+        mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=generation)
 
+if __name__ == '__main__':
+    main_func()

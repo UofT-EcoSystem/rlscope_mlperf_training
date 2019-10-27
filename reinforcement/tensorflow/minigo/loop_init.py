@@ -14,6 +14,7 @@
 
 """Wrapper scripts to ensure that main.py commands are called correctly."""
 import argh
+import pprint
 import argparse
 import cloud_logging
 import logging
@@ -46,9 +47,16 @@ from mlperf_compliance import mlperf_log
 
 #BASE_DIR = "gs://{}".format(BUCKET_NAME)
 BASE_DIR = goparams.BASE_DIR
-if os.path.isdir(BASE_DIR): # if it already exists, delete it.
-    shutil.rmtree(BASE_DIR, ignore_errors=True)
-os.system('mkdir ' + BASE_DIR)
+
+# IML NOTE:
+#   This does NOT play nice with multiprocessing process forking with multiprocessing.get_context('spawn'),
+#   since it triggers a module import on loop_init which DELETES the entire training directory!
+#   Instead, lets just depend on our caller to clear the directory for us!
+#
+# if os.path.isdir(BASE_DIR): # if it already exists, delete it.
+#     shutil.rmtree(BASE_DIR, ignore_errors=True)
+#
+# os.system('mkdir ' + BASE_DIR)
 
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
 SELFPLAY_DIR = os.path.join(BASE_DIR, 'data/selfplay')
@@ -119,28 +127,36 @@ def main_fn():
 
 
 if __name__ == '__main__':
+    logging.info(("> MINIGO CMD:\n"
+                  "  $ {cmd}"
+                  ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    logging.info(pprint.pformat(vars(args)))
+    logging.info(pprint.pformat({
+        'sys.argv': sys.argv,
+    }))
+    iml.handle_iml_args(parser, args, reports_progress=False)
 
     with iml.prof.profile(process_name='loop_init', phase_name='bootstrap', handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
         qmeas.start(os.path.join(BASE_DIR, 'stats'))
 
-        # get TF logger
-        log = logging.getLogger('tensorflow')
-        log.setLevel(logging.DEBUG)
+        if goparams.TENSORFLOW_LOGGING:
+            # get TF logger
+            log = logging.getLogger('tensorflow')
+            log.setLevel(logging.DEBUG)
 
-        # create formatter and add it to the handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # create formatter and add it to the handlers
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # create file handler which logs even debug messages
-        fh = logging.FileHandler('tensorflow.log')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        log.addHandler(fh)
+            # create file handler which logs even debug messages
+            fh = logging.FileHandler('tensorflow.log')
+            fh.setLevel(logging.DEBUG)
+            fh.setFormatter(formatter)
+            log.addHandler(fh)
 
         # mlperf logging for starting the entire run
         mlperf_log.minigo_print(key=mlperf_log.RUN_START)

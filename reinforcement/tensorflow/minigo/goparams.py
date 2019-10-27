@@ -35,7 +35,7 @@ else:
   #raise Exception('GOPARAMS not defined. Use GOPARAMS=path/to/json')
 
 
-def _set(name, default, allow_env=False):
+def _set(name, default, allow_env=False, allow_missing=False):
   val = default
   if allow_env and name in ENV:
     print("> Using {name}={value} from ENV".format(
@@ -44,9 +44,10 @@ def _set(name, default, allow_env=False):
     ))
     val = ENV[name]
   elif _PARAMS is not None:
-    if name not in _PARAMS:
+    if name in _PARAMS:
+      val = _PARAMS[name]
+    elif not allow_missing:
       raise Exception('Key ' + name + ' Not Defined in GOPARAMS config')
-    val = _PARAMS[name]
   globals()[name] = val
 
 
@@ -94,6 +95,12 @@ _set('WINDOW_SIZE', 10000000)
 
 # Set to run the dummy model instead of the real one, for speedups
 _set('DUMMY_MODEL', False)
+
+# Whether to enable verbose tensorflow logging.
+# IML NOTE: This was ENABLED by default in minigo, presumably to give more information
+# about where time was spent in the TensorFlow API.
+# However, it's very noisy and unhelpful.
+_set('TENSORFLOW_LOGGING', False, allow_missing=True)
 
 _set('NUM_PARALLEL_SELFPLAY', 4)
 

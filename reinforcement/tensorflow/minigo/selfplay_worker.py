@@ -276,23 +276,29 @@ def rl_loop():
 
 
 if __name__ == '__main__':
+    logging.info(("> MINIGO CMD:\n"
+                  "  $ {cmd}"
+                  ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # GOPARAMS=params/james.json python3 selfplay_worker.py
     # /mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo 2
     # --worker-id 0 loop_selfplay.py --iml-num-traces 10
     # --iml-start-measuring-call 1 --iml-bench-name NoBenchName
     # --iml-num-calls 1000
-    parser.add_argument("base_dir", help="Iteration of self-play/train-eval")
-    parser.add_argument("seed", type=int, help="Seed")
+    parser.add_argument("--base-dir", help="Iteration of self-play/train-eval")
+    parser.add_argument("--seed", type=int, help="Seed")
+    parser.add_argument("--generation", type=int, help="Go generation")
     parser.add_argument("--worker-id", type=int, required=True, help="Worker id")
     iml.add_iml_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, directory=goparams.BASE_DIR)
+    iml.handle_iml_args(parser, args, reports_progress=False)
 
     init_globals(args.base_dir)
 
-    process_name = "selfplay_worker_{i}".format(
-        i=args.worker_id)
+    process_name = "selfplay_worker_{i}_generation_{g}".format(
+        i=args.worker_id,
+        g=args.generation,
+    )
     with iml.prof.profile(process_name=process_name, phase_name=process_name, handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
@@ -302,17 +308,18 @@ if __name__ == '__main__':
         tf.set_random_seed(seed)
         numpy.random.seed(seed)
 
-        # get TF logger
-        log = logging.getLogger('tensorflow')
-        log.setLevel(logging.DEBUG)
+        if goparams.TENSORFLOW_LOGGING:
+            # get TF logger
+            log = logging.getLogger('tensorflow')
+            log.setLevel(logging.DEBUG)
 
-        # create formatter and add it to the handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # create formatter and add it to the handlers
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-        # create file handler which logs even debug messages
-        fh = logging.FileHandler('tensorflow.log')
-        fh.setLevel(logging.DEBUG)
-        fh.setFormatter(formatter)
-        log.addHandler(fh)
+            # create file handler which logs even debug messages
+            fh = logging.FileHandler('tensorflow.log')
+            fh.setLevel(logging.DEBUG)
+            fh.setFormatter(formatter)
+            log.addHandler(fh)
         rl_loop()
 

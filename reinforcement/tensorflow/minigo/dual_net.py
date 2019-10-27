@@ -40,14 +40,15 @@ import iml_profiler.api as iml
 
 import goparams
 
+# JAMES NOTE: There are hyperparameters hardcoded in some files instead of being inside a JSON hyperparameter file!
+# (e.g. reinforcement/tensorflow/minigo/params/final.json).
+# Looks like this is just a convenient way of using python code to employ dynamic handling of parameter values.
+# (e.g. if you grep for goparams.DUMMY_MODEL, minigo set things like EXAMPLES_PER_GENERATION conditioned on that).
+
 # How many positions to look at per generation.
 # Per AGZ, 2048 minibatch * 1k = 2M positions/generation
 #EXAMPLES_PER_GENERATION = 2000000
-# EXAMPLES_PER_GENERATION = 100000
-
-# sgd_updates proto file is WAY too big 800MB and causes issues during analyzing data.
-# Make the file manageable.
-EXAMPLES_PER_GENERATION = int(100000 * (1./10.))
+EXAMPLES_PER_GENERATION = 100000
 
 # How many positions can fit on a graphics card. 256 for 9s, 16 or 32 for 19s.
 TRAIN_BATCH_SIZE = 16

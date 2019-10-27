@@ -9,7 +9,9 @@ shift 1
 cd $(dirname $0)/minigo
 #cd /research/reinforcement/minigo
 #bash ./loop_main.sh params/final.json $SEED
-set -x
+if [ "$DEBUG" == 'yes' ]; then
+    set -x
+fi
 
 if [ "$GOPARAMS" = "" ]; then
     #export GOPARAMS="params/james.json"
@@ -22,9 +24,28 @@ if [ ! -f "$GOPARAMS" ]; then
 fi
 
 
-READ_JSON_PY="read_json.py"
-echo "BASE_DIR = $BASE_DIR"
-base_dir="$(python3 $READ_JSON_PY $GOPARAMS --attr BASE_DIR --allow-env)"
-mkdir -p $base_dir
+#READ_JSON_PY="read_json.py"
+#echo "BASE_DIR = $BASE_DIR"
+#base_dir="$(python3 $READ_JSON_PY $GOPARAMS --attr BASE_DIR --allow-env)"
+
+if [ "$IML_DIRECTORY" == "" ]; then
+    echo "IML ERROR: Expected \"export IML_DIRECTORY=...\" to be set to directory to store trace-files, but it wasn't set!"
+    exit 1
+fi
+export BASE_DIR=$IML_DIRECTORY/minigo_base_dir
+
+if [ -d "$IML_DIRECTORY" ]; then
+    echo "> Detected results from previous IML run @ $IML_DIRECTORY; deleting them:"
+    echo "  RM: $IML_DIRECTORY"
+    rm -rf $IML_DIRECTORY
+fi
+
+if [ -d "$BASE_DIR" ]; then
+    echo "> Detected results from previous minigo run @ $BASE_DIR; deleting them:"
+    echo "  RM: $BASE_DIR"
+    rm -rf $BASE_DIR
+fi
+
+mkdir -p $BASE_DIR
 
 bash ./loop_main.sh $GOPARAMS $SEED "$@"

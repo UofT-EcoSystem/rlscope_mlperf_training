@@ -21,7 +21,9 @@ fi
 
 echo "running benchmark with seed $seed"
 # The termination quality is set in params/final.json. See RAEDME.md.
-set -x
+if [ "$DEBUG" == 'yes' ]; then
+    set -x
+fi
 
 set +e
 ./run.sh $seed "$@"

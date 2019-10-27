@@ -166,27 +166,27 @@ class MCTSPlayerMixin:
         return coords.from_flat(fcoord)
 
     def tree_search(self, num_parallel=None):
-        with iml.prof.operation('tree_search'):
+        with iml.prof.operation('mcts_tree_search'):
             if num_parallel is None:
                 num_parallel = self.num_parallel
             leaves = []
             failsafe = 0
-            with iml.prof.operation('tree_search_loop'):
-                while len(leaves) < num_parallel and failsafe < num_parallel * 2:
-                    failsafe += 1
-                    leaf = self.root.select_leaf()
-                    if self.verbosity >= 4:
-                        print(self.show_path_to_root(leaf))
-                    # if game is over, override the value estimate with the true score
-                    if leaf.is_done():
-                        value = 1 if leaf.position.score() > 0 else -1
-                        leaf.backup_value(value, up_to=self.root)
-                        continue
-                    leaf.add_virtual_loss(up_to=self.root)
-                    leaves.append(leaf)
+            while len(leaves) < num_parallel and failsafe < num_parallel * 2:
+                failsafe += 1
+                leaf = self.root.select_leaf()
+                if self.verbosity >= 4:
+                    print(self.show_path_to_root(leaf))
+                # if game is over, override the value estimate with the true score
+                if leaf.is_done():
+                    value = 1 if leaf.position.score() > 0 else -1
+                    leaf.backup_value(value, up_to=self.root)
+                    continue
+                leaf.add_virtual_loss(up_to=self.root)
+                leaves.append(leaf)
             if leaves:
-                move_probs, values = self.network.run_many(
-                    [leaf.position for leaf in leaves])
+                with iml.prof.operation('expand_leaf'):
+                    move_probs, values = self.network.run_many(
+                        [leaf.position for leaf in leaves])
                 for leaf, move_prob, value in zip(leaves, move_probs, values):
                     leaf.revert_virtual_loss(up_to=self.root)
                     leaf.incorporate_results(move_prob, value, up_to=self.root)

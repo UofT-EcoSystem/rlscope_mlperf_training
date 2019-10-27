@@ -246,7 +246,6 @@ def rl_loop(generation):
     # JAMES NOTE: this runs very fast.
     new_model = train()
 
-
     if goparams.EVALUATE_PUZZLES:
       # JAMES NOTE: this code evaluates the newly trained model to see whether it
       # reaches the "target accuracy" as defined by MLPerf.
@@ -266,43 +265,45 @@ def rl_loop(generation):
           g=generation,
       ))
 
-      # JAMES TODO: We'd like to nest 'load_network'/'init_network' inside 'puzzle' here...
-      qmeas.start_time('puzzle')
-      print("Evaluate puzzles")
-      # import ipdb; ipdb.set_trace()
-      new_model_path = os.path.join(MODELS_DIR, new_model)
-      # JAMES NOTE: pretrained puzzle moves? What are these?
-      sgf_files = [
-        './benchmark_sgf/9x9_pro_YKSH.sgf',
-        './benchmark_sgf/9x9_pro_IYMD.sgf',
-        './benchmark_sgf/9x9_pro_YSIY.sgf',
-        './benchmark_sgf/9x9_pro_IYHN.sgf',
-      ]
-      result, total_pct = predict_games.report_for_puzzles(new_model_path, sgf_files, 2, tries_per_move=1)
-      print('accuracy = ', total_pct)
-      mlperf_log.minigo_print(key=mlperf_log.EVAL_ACCURACY,
-                              value={"epoch": generation, "value": total_pct})
-      mlperf_log.minigo_print(key=mlperf_log.EVAL_TARGET,
-                              value=goparams.TERMINATION_ACCURACY)
+      with iml.prof.operation('evaluate_term_moves'):
+
+          # JAMES TODO: We'd like to nest 'load_network'/'init_network' inside 'puzzle' here...
+          qmeas.start_time('puzzle')
+          print("Evaluate puzzles")
+          # import ipdb; ipdb.set_trace()
+          new_model_path = os.path.join(MODELS_DIR, new_model)
+          # JAMES NOTE: pretrained puzzle moves? What are these?
+          sgf_files = [
+            './benchmark_sgf/9x9_pro_YKSH.sgf',
+            './benchmark_sgf/9x9_pro_IYMD.sgf',
+            './benchmark_sgf/9x9_pro_YSIY.sgf',
+            './benchmark_sgf/9x9_pro_IYHN.sgf',
+          ]
+          result, total_pct = predict_games.report_for_puzzles(new_model_path, sgf_files, 2, tries_per_move=1)
+          print('accuracy = ', total_pct)
+          mlperf_log.minigo_print(key=mlperf_log.EVAL_ACCURACY,
+                                  value={"epoch": generation, "value": total_pct})
+          mlperf_log.minigo_print(key=mlperf_log.EVAL_TARGET,
+                                  value=goparams.TERMINATION_ACCURACY)
 
 
-      qmeas.record('puzzle_total', total_pct)
-      qmeas.record('puzzle_result', repr(result))
-      qmeas.record('puzzle_summary', {'results': repr(result), 'total_pct': total_pct, 'model': new_model})
-      qmeas._flush()
-      with open(os.path.join(BASE_DIR, new_model + '-puzzles.txt'), 'w') as f:
-        f.write(repr(result))
-        f.write('\n' + str(total_pct) + '\n')
-      qmeas.stop_time('puzzle')
-      if total_pct >= goparams.TERMINATION_ACCURACY:
-        print('Reaching termination accuracy; ', goparams.TERMINATION_ACCURACY)
+          qmeas.record('puzzle_total', total_pct)
+          qmeas.record('puzzle_result', repr(result))
+          qmeas.record('puzzle_summary', {'results': repr(result), 'total_pct': total_pct, 'model': new_model})
+          qmeas._flush()
+          with open(os.path.join(BASE_DIR, new_model + '-puzzles.txt'), 'w') as f:
+            f.write(repr(result))
+            f.write('\n' + str(total_pct) + '\n')
+          qmeas.stop_time('puzzle')
+          if total_pct >= goparams.TERMINATION_ACCURACY:
+            print('Reaching termination accuracy; ', goparams.TERMINATION_ACCURACY)
 
-        mlperf_log.minigo_print(key=mlperf_log.RUN_STOP,
-                                value={"success": True})
+            mlperf_log.minigo_print(key=mlperf_log.RUN_STOP,
+                                    value={"success": True})
 
-        with open('TERMINATE_FLAG', 'w') as f:
-          f.write(repr(result))
-          f.write('\n' + str(total_pct) + '\n')
+            with open('TERMINATE_FLAG', 'w') as f:
+              f.write(repr(result))
+              f.write('\n' + str(total_pct) + '\n')
 
     # JAMES TODO: with iml.prof.use_num_calls(3000):
     # TODO: appears to be running multiple evaluations? (expect 3 games, saw more.)
@@ -315,16 +316,18 @@ def rl_loop(generation):
           g=generation,
       ))
 
-      # JAMES NOTE: Use the same number of "readouts" as during self-play.
-      # NOTE: "readouts" = # of MCTS nodes that get "expanded" BEFORE choosing a move.
-      # So expects increasing readouts by a factor of 10 to simply multiply subplot-phase
-      # runtime by a factor of 10, with the same CPU/GPU utilization characteristics.
+      with iml.prof.operation('evaluate_candidates'):
 
-      readouts = goparams.SP_READOUTS
-      print("> Evaluate with readouts={readouts}".format(
-          readouts=readouts))
-      if not evaluate(model_name, new_model, readouts=readouts):
-        bury_latest_model()
+          # JAMES NOTE: Use the same number of "readouts" as during self-play.
+          # NOTE: "readouts" = # of MCTS nodes that get "expanded" BEFORE choosing a move.
+          # So expects increasing readouts by a factor of 10 to simply multiply subplot-phase
+          # runtime by a factor of 10, with the same CPU/GPU utilization characteristics.
+
+          readouts = goparams.SP_READOUTS
+          print("> Evaluate with readouts={readouts}".format(
+              readouts=readouts))
+          if not evaluate(model_name, new_model, readouts=readouts):
+            bury_latest_model()
 
 def main_func():
     logging.info(("> MINIGO CMD:\n"
@@ -370,7 +373,9 @@ def main_func():
             fh.setLevel(logging.DEBUG)
             fh.setFormatter(formatter)
             log.addHandler(fh)
-        rl_loop(args.generation)
+        # IML: catch-all operation
+        with iml.prof.operation('train'):
+            rl_loop(args.generation)
         qmeas.end()
         mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=generation)
 

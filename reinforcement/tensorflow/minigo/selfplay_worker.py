@@ -249,30 +249,33 @@ def rl_loop():
     all default parameters.
     """
 
-    if goparams.DUMMY_MODEL:
-        # monkeypatch the hyperparams so that we get a quickly executing network.
-        dual_net.get_default_hyperparams = lambda **kwargs: {
-            'k': 8, 'fc_width': 16, 'num_shared_layers': 1, 'l2_strength': 1e-4, 'momentum': 0.9}
+    # IML: catch-all operation
+    with iml.prof.operation('selfplay_worker'):
 
-        dual_net.TRAIN_BATCH_SIZE = 16
-        dual_net.EXAMPLES_PER_GENERATION = 64
+        if goparams.DUMMY_MODEL:
+            # monkeypatch the hyperparams so that we get a quickly executing network.
+            dual_net.get_default_hyperparams = lambda **kwargs: {
+                'k': 8, 'fc_width': 16, 'num_shared_layers': 1, 'l2_strength': 1e-4, 'momentum': 0.9}
 
-        #monkeypatch the shuffle buffer size so we don't spin forever shuffling up positions.
-        preprocessing.SHUFFLE_BUFFER_SIZE = 1000
+            dual_net.TRAIN_BATCH_SIZE = 16
+            dual_net.EXAMPLES_PER_GENERATION = 64
 
-    _, model_name = get_latest_model()
-    network = selfplay_laod_model(model_name)
-    def count_games():
-      # returns number of games in the selfplay directory
-      if not os.path.exists(os.path.join(SELFPLAY_DIR, model_name)):
-        # directory not existing implies no games have been played yet
-        return 0
-      return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
+            #monkeypatch the shuffle buffer size so we don't spin forever shuffling up positions.
+            preprocessing.SHUFFLE_BUFFER_SIZE = 1000
 
-    while count_games() < goparams.MAX_GAMES_PER_GENERATION:
-      selfplay_cache_model(network, model_name)
+        _, model_name = get_latest_model()
+        network = selfplay_laod_model(model_name)
+        def count_games():
+          # returns number of games in the selfplay directory
+          if not os.path.exists(os.path.join(SELFPLAY_DIR, model_name)):
+            # directory not existing implies no games have been played yet
+            return 0
+          return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
 
-    print('Stopping selfplay after finding {} games played.'.format(count_games()))
+        while count_games() < goparams.MAX_GAMES_PER_GENERATION:
+          selfplay_cache_model(network, model_name)
+
+        print('Stopping selfplay after finding {} games played.'.format(count_games()))
 
 
 if __name__ == '__main__':

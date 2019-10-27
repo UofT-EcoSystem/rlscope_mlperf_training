@@ -80,17 +80,17 @@ def report_for_puzzles(model_path, sgf_files, rounds, tries_per_move=1):
     # JAMES TODO: use tqdm to add progress bars (i.e. why's this taking so long..?)
     for filename_i, filename in enumerate(tqdm(sgf_files, 'puzzle_file')):
       # Too broad.
-      # with iml.prof.operation('puzzle_file'):
-      log("  >> i = {i}, filename = {f}".format(
-          i=filename_i,
-          f=filename))
-      if filename not in results:
-        results[filename] = []
-      move_ratings = predict_move(filename, network, tries_per_move=tries_per_move)
-      tries += len(move_ratings)
-      sum_ratings += sum(move_ratings)
-      results[filename].append(sum(move_ratings) / len(move_ratings))
-      report_model_results({model_path: results})
+      with iml.prof.operation('compare_pretrained_moves'):
+          log("  >> i = {i}, filename = {f}".format(
+              i=filename_i,
+              f=filename))
+          if filename not in results:
+            results[filename] = []
+          move_ratings = predict_move(filename, network, tries_per_move=tries_per_move)
+          tries += len(move_ratings)
+          sum_ratings += sum(move_ratings)
+          results[filename].append(sum(move_ratings) / len(move_ratings))
+          report_model_results({model_path: results})
   return results, sum_ratings * 1.0 / tries
 
 
@@ -149,7 +149,7 @@ def predict_move(filename, network, tries_per_move=1, readouts=1000):
   correct = 0
   move_ratings = []
   for position_w_context_i, position_w_context in enumerate(tqdm(replay, 'predict_move_loop')):
-      with iml.prof.operation('predict_move_loop'):
+      with iml.prof.operation('test_predict_move'):
           if position_w_context.next_move is None:
               continue
           log("    >> predict_position: position_w_context_i = {i}".format(

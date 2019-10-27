@@ -34,6 +34,11 @@ if [ "$IML_DIRECTORY" == "" ]; then
 fi
 export BASE_DIR=$IML_DIRECTORY/minigo_base_dir
 
+if [ "$IML_CONFIG" == "" ]; then
+    echo "IML ERROR: Expected \"export IML_CONFIG=...\" to be set to either \"full\" (Full IML instrumentation) or \"uninstrumented\" (uninstrumented runs)"
+    exit 1
+fi
+
 if [ -d "$IML_DIRECTORY" ]; then
     echo "> Detected results from previous IML run @ $IML_DIRECTORY; deleting them:"
     echo "  RM: $IML_DIRECTORY"

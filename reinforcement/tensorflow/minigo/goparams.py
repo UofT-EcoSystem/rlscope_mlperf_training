@@ -102,6 +102,12 @@ _set('DUMMY_MODEL', False)
 # However, it's very noisy and unhelpful.
 _set('TENSORFLOW_LOGGING', False, allow_missing=True)
 
+# Fully instrumented IML runs:
+#   $ iml-prof --config full
+# Uninstrumented runs:
+#   $ iml-prof --config uninstrumented
+_set('IML_CONFIG', 'uninstrumented', allow_env=True, allow_missing=True)
+
 _set('NUM_PARALLEL_SELFPLAY', 4)
 
 _set('EVAL_GAMES_PER_SIDE', 2)

@@ -224,27 +224,28 @@ def rl_loop(generation):
     This tries to create a realistic way to run the reinforcement learning with
     all default parameters.
     """
+    # IML: catch-all operation
+    with iml.prof.operation('train'):
+        if goparams.DUMMY_MODEL:
+            # monkeypatch the hyperparams so that we get a quickly executing network.
+            dual_net.get_default_hyperparams = lambda **kwargs: {
+                'k': 8, 'fc_width': 16, 'num_shared_layers': 1, 'l2_strength': 1e-4, 'momentum': 0.9}
 
-    if goparams.DUMMY_MODEL:
-        # monkeypatch the hyperparams so that we get a quickly executing network.
-        dual_net.get_default_hyperparams = lambda **kwargs: {
-            'k': 8, 'fc_width': 16, 'num_shared_layers': 1, 'l2_strength': 1e-4, 'momentum': 0.9}
+            dual_net.TRAIN_BATCH_SIZE = 16
+            dual_net.EXAMPLES_PER_GENERATION = 64
 
-        dual_net.TRAIN_BATCH_SIZE = 16
-        dual_net.EXAMPLES_PER_GENERATION = 64
+            #monkeypatch the shuffle buffer size so we don't spin forever shuffling up positions.
+            preprocessing.SHUFFLE_BUFFER_SIZE = 1000
 
-        #monkeypatch the shuffle buffer size so we don't spin forever shuffling up positions.
-        preprocessing.SHUFFLE_BUFFER_SIZE = 1000
+        qmeas.stop_time('selfplay_wait')
+        print("Gathering game output...")
+        gather()
 
-    qmeas.stop_time('selfplay_wait')
-    print("Gathering game output...")
-    gather()
-
-    print("Training on gathered game data...")
-    # import ipdb; ipdb.set_trace()
-    _, model_name = get_latest_model()
-    # JAMES NOTE: this runs very fast.
-    new_model = train()
+        print("Training on gathered game data...")
+        # import ipdb; ipdb.set_trace()
+        _, model_name = get_latest_model()
+        # JAMES NOTE: this runs very fast.
+        new_model = train()
 
     if goparams.EVALUATE_PUZZLES:
       # JAMES NOTE: this code evaluates the newly trained model to see whether it
@@ -373,9 +374,7 @@ def main_func():
             fh.setLevel(logging.DEBUG)
             fh.setFormatter(formatter)
             log.addHandler(fh)
-        # IML: catch-all operation
-        with iml.prof.operation('train'):
-            rl_loop(args.generation)
+        rl_loop(args.generation)
         qmeas.end()
         mlperf_log.minigo_print(key=mlperf_log.EVAL_STOP, value=generation)
 

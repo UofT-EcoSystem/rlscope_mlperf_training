@@ -135,13 +135,14 @@ def main_(seed, generation):
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
       # JAMES TODO: forward set_phase to children.
       iml_argv, iml_env = iml.iml_argv_and_env(iml.prof)
-      cmd = "GOPARAMS={GOPARAMS} iml-prof python3 selfplay_worker.py --base-dir {BASE_DIR} --seed {seed} --generation {g} --worker-id {id} {iml_args}".format(
+      cmd = "GOPARAMS={GOPARAMS} iml-prof --config {iml_config} python3 selfplay_worker.py --base-dir {BASE_DIR} --seed {seed} --generation {g} --worker-id {id} {iml_args}".format(
           GOPARAMS=os.environ['GOPARAMS'],
           BASE_DIR=BASE_DIR,
           g=generation,
           id=i,
           seed=worker_seed,
           iml_args=" ".join(iml_argv),
+          iml_config=goparams.IML_CONFIG,
       )
       print("> CMDLINE @ worker_{i}: {cmd}".format(
           i=i, cmd=cmd))

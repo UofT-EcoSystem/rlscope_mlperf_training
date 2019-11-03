@@ -27,6 +27,10 @@ import preprocessing
 import subprocess
 import pprint
 
+import codecs
+import json
+import filelock
+
 import glob
 from tensorflow import gfile
 
@@ -64,6 +68,99 @@ MAX_GAMES_PER_GENERATION = goparams.MAX_GAMES_PER_GENERATION
 # What percent of games to holdout from training per generation
 
 HOLDOUT_PCT = goparams.HOLDOUT_PCT
+
+def as_lock_path(path):
+    return "{path}.lock".format(
+        path=path,
+    )
+
+class SelfplayGlobals:
+    """
+    globals.json
+    {
+        # Workers increment this BEFORE they play a game, which informs other workers about the
+        # EVENTUAL number of games that will be played.
+        # This allows us to avoid "playing too many games".
+        games_to_be_played: <Integer>,
+
+        # Games that have been played.
+        # NOTE: not strictly required, just nice for debugging progress.
+        games_played: <Integer>,
+    }
+    """
+    def __init__(self, selfplay_dir, model_name):
+        self.json_path = os.path.join(selfplay_dir, model_name, 'globals.json')
+        self.lock_path = as_lock_path(self.json_path)
+
+    def init_state(self):
+        # Shouldn't exist yet...
+        assert not os.path.exists(self.lock_path)
+        lock = filelock.FileLock(self.lock_path)
+        os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+        with lock:
+            os.makedirs(os.path.dirname(self.json_path), exist_ok=True)
+            data = {
+                'games_to_be_played': 0,
+                'games_played': 0,
+            }
+            self._dump_json(data, self.json_path)
+
+    def count_games_to_be_played(self):
+        return self._get_attr('games_to_be_played')
+
+    def count_games_played(self):
+        return self._get_attr('games_played')
+
+    def _get_attr(self, attr):
+        assert os.path.exists(self.lock_path)
+        lock = filelock.FileLock(self.lock_path)
+        with lock:
+            data = self._load_json(self.json_path)
+        return data[attr]
+
+    def increment_games_played(self):
+        assert os.path.exists(self.lock_path)
+        lock = filelock.FileLock(self.lock_path)
+        with lock:
+            data = self._load_json(self.json_path)
+            data['games_played'] = data['games_played'] + 1
+            ret = data['games_played']
+            self._dump_json(data, self.json_path)
+        return ret
+
+    def maybe_increment_games_to_be_played(self, max_limit):
+        """
+        PSEUDOCODE:
+        lock state:
+            if state.games_to_be_played < goparams.MAX_GAMES_PER_GENERATION:
+                state.games_to_be_played += 1
+                return True
+            else:
+                return False
+        """
+        assert os.path.exists(self.lock_path)
+        lock = filelock.FileLock(self.lock_path)
+        with lock:
+            data = self._load_json(self.json_path)
+            if data['games_to_be_played'] < max_limit:
+                data['games_to_be_played'] = data['games_to_be_played'] + 1
+                self._dump_json(data, self.json_path)
+                ret = True
+            else:
+                # Max number of games to play has been reached.
+                ret = False
+        return ret
+
+    def _dump_json(self, data, json_path):
+        with codecs.open(json_path, mode='w', encoding='utf-8') as f:
+            json.dump(data, f,
+                      sort_keys=True, indent=4,
+                      skipkeys=False)
+
+    def _load_json(self, json_path):
+        with codecs.open(json_path, mode='r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
 
 
 def print_flags():
@@ -150,12 +247,9 @@ def main_(seed, generation):
       procs.append(subprocess.Popen(cmd, shell=True, env=iml_env))
 
     selfplay_dir = os.path.join(SELFPLAY_DIR, model_name)
-    def count_games():
-      # returns number of games in the selfplay directory
-      if not os.path.exists(os.path.join(SELFPLAY_DIR, model_name)):
-        # directory not existing implies no games have been played yet
-        return 0
-      return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
+
+    selfplay_globals = SelfplayGlobals(SELFPLAY_DIR, model_name)
+    selfplay_globals.init_state()
 
     print('NUM_PARALLEL_SELFPLAY = {n}'.format(n=goparams.NUM_PARALLEL_SELFPLAY))
     for i in range(goparams.NUM_PARALLEL_SELFPLAY):
@@ -176,11 +270,12 @@ def main_(seed, generation):
             print("> FAILED!".format(i=i))
             sys.exit(1)
 
-    while count_games() < MAX_GAMES_PER_GENERATION:
+    games = selfplay_globals.count_games_to_be_played()
+    while games < MAX_GAMES_PER_GENERATION:
         time.sleep(10)
         check_procs()
 
-        games = count_games()
+        games = selfplay_globals.count_games_to_be_played()
         print('Found Games: {}'.format(games))
         print('selfplaying: {:.2f} games/hour'.format(games / ((time.time() - start_t) / 60 / 60) ))
         print('Worker Processes: {}'.format(count_live_procs()))
@@ -188,36 +283,22 @@ def main_(seed, generation):
 
     print('Done with selfplay loop.')
 
-    time.sleep(10)
-    check_procs()
-
+    print('Waiting for selfplay worker children to exit...')
     for proc in procs:
-      proc.kill()
-
-    # Sometimes the workers need extra help...
-    time.sleep(5)
-    os.system('pkill -f selfplay_worker.py')
-
-    # Let things settle after we kill processes.
-    time.sleep(10)
+        proc.wait()
+    print('Done waiting for selfplay worker children')
 
     # Because we use process level parallelism for selfpaying and we don't
     # sync or communicate between processes, there could be too many games
     # played (up to 1 extra game per worker process).
     # This is a rather brutish way to ensure we train on the correct number
     # of games...
-    print('There are {} games in the selfplay directory at {}'.format(count_games(), selfplay_dir))
+    games = selfplay_globals.count_games_played()
+    print('There are {} games in the selfplay directory at {}'.format(games, selfplay_dir))
     sys.stdout.flush()
-    while count_games() > MAX_GAMES_PER_GENERATION:
-      print('Too many selfplay games ({}/{}) ... deleting one'.format(count_games(), MAX_GAMES_PER_GENERATION))
-      # This will remove exactly one game file from the selfplay directory... or
-      # so we hope :)
-      sys.stdout.flush()
-      os.system('ls {}/* -d | tail -n 1 | xargs rm'.format(selfplay_dir))
-      # unclear if this sleep is necessary...
-      time.sleep(1)
-    print('After cleanup, there are {} games in the selfplay directory at {}'.format(count_games(), selfplay_dir))
-    sys.stdout.flush()
+
+    # There shouldn't be any "extra games"
+    assert games == MAX_GAMES_PER_GENERATION
 
     qmeas.stop_time('selfplay_wait')
 

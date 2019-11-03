@@ -18,3 +18,6 @@ mlperf_compliance==0.0.6
 
 # iml_profiler related additions.
 jsmin==2.2.2
+# Use proper lock synchronization to avoid kill-ing processes
+# and losing their trace-data.
+filelock==3.0.12

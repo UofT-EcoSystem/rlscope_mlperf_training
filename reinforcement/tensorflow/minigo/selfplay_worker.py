@@ -36,6 +36,8 @@ import logging
 import goparams
 import iml_profiler.api as iml
 
+from loop_selfplay import SelfplayGlobals
+
 import qmeas
 import multiprocessing
 
@@ -179,7 +181,12 @@ def selfplay_cache_model(network, model_name, readouts=goparams.SP_READOUTS, ver
         resign_threshold=resign_threshold,
         verbose=verbose,
     )
-
+    # Increment number of selfplay games played.
+    selfplay_globals = SelfplayGlobals(SELFPLAY_DIR, model_name)
+    num_games_played = selfplay_globals.increment_games_played()
+    print("Played {n} games so far with model {model}".format(
+        n=num_games_played,
+        model=model_name))
 
 
 def gather():
@@ -264,18 +271,17 @@ def rl_loop():
             preprocessing.SHUFFLE_BUFFER_SIZE = 1000
 
         _, model_name = get_latest_model()
+        selfplay_globals = SelfplayGlobals(SELFPLAY_DIR, model_name)
         network = selfplay_laod_model(model_name)
-        def count_games():
-          # returns number of games in the selfplay directory
-          if not os.path.exists(os.path.join(SELFPLAY_DIR, model_name)):
-            # directory not existing implies no games have been played yet
-            return 0
-          return len(gfile.Glob(os.path.join(SELFPLAY_DIR, model_name, '*.zz')))
 
-        while count_games() < goparams.MAX_GAMES_PER_GENERATION:
-          selfplay_cache_model(network, model_name)
+        while True:
+            should_play_game = selfplay_globals.maybe_increment_games_to_be_played(max_limit=goparams.MAX_GAMES_PER_GENERATION)
+            if not should_play_game:
+                break
+            selfplay_cache_model(network, model_name)
+        games = selfplay_globals.count_games_to_be_played()
 
-        print('Stopping selfplay after finding {} games played.'.format(count_games()))
+        print('Stopping selfplay after finding {} games to be played.'.format(games))
 
 
 if __name__ == '__main__':

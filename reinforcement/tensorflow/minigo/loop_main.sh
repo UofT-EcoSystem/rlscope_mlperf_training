@@ -64,7 +64,7 @@ GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_init.py --iml-d
 # training will terminate.
 #
 # If this were to have a hyperparameter, it should be called NUM_GENERATIONS.
-for i in $(seq 0 $NUM_GENERATIONS);
+for i in $(seq 1 $NUM_GENERATIONS);
 do
 GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_selfplay.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
 

@@ -26,6 +26,7 @@ import dual_net
 import preprocessing
 import subprocess
 import pprint
+import textwrap
 
 import codecs
 import json
@@ -232,18 +233,32 @@ def main_(seed, generation):
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
       # JAMES TODO: forward set_phase to children.
       iml_argv, iml_env = iml.iml_argv_and_env(iml.prof)
-      cmd = "GOPARAMS={GOPARAMS} iml-prof --config {iml_config} python3 selfplay_worker.py --base-dir {BASE_DIR} --seed {seed} --generation {g} --worker-id {id} {iml_args}".format(
-          GOPARAMS=os.environ['GOPARAMS'],
-          BASE_DIR=BASE_DIR,
-          g=generation,
-          id=i,
-          seed=worker_seed,
-          iml_args=" ".join(iml_argv),
-          iml_config=goparams.IML_CONFIG,
-      )
-      print("> CMDLINE @ worker_{i}: {cmd}".format(
+      cmdline_args = []
+      cmdline_args.extend(["GOPARAMS={GOPARAMS}".format(
+          GOPARAMS=os.environ['GOPARAMS'])])
+      logging.info("> goparams.RUN_NVPROF = {RUN_NVPROF}".format(RUN_NVPROF=goparams.RUN_NVPROF))
+      if goparams.RUN_NVPROF:
+          nvprof_dir = os.path.join(BASE_DIR, "nvprof", "profile.process_%p.nvprof")
+          os.makedirs(os.path.dirname(nvprof_dir), exist_ok=True)
+          cmdline_args.extend(["nvprof", "--profile-child-processes", "-o", nvprof_dir])
+      else:
+          cmdline_args.extend(["iml-prof", "--config", goparams.IML_CONFIG])
+      cmdline_args.extend([
+          "python3", "selfplay_worker.py",
+          "--base-dir", BASE_DIR,
+          "--seed", seed,
+          "--generation", generation,
+          "--worker-id", i,
+         ])
+      if goparams.RUN_NVPROF:
+          cmdline_args.extend(["--iml-disable"])
+      cmdline_args.extend(iml_argv)
+      cmd = " ".join([str(opt) for opt in cmdline_args])
+      print("> CMDLINE @ worker_{i}:\n  $ {cmd}".format(
           i=i, cmd=cmd))
-      pprint.pprint({'iml_argv': iml_argv, 'cmd':cmd})
+      print(textwrap.indent(pprint.pformat({
+          'env': iml_env,
+      }), prefix="  "))
       procs.append(subprocess.Popen(cmd, shell=True, env=iml_env))
 
     selfplay_dir = os.path.join(SELFPLAY_DIR, model_name)
@@ -304,7 +319,7 @@ def main_(seed, generation):
 
 
 if __name__ == '__main__':
-    logging.info(("> MINIGO CMD:\n"
+    logging.info(("> CHANGE MINIGO CMD:\n"
                   "  $ {cmd}"
                   ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

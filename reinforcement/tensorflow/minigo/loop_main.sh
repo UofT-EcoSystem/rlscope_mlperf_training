@@ -59,6 +59,7 @@ iml-util-sampler "$@" --iml-directory $IML_DIRECTORY --iml-root-pid $$ &
 UTIL_SAMPLER_PID=$!
 
 GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_init.py --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@"
+#GOPARAMS=$PARAMS_FILE python3 loop_init.py --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@"
 # JAMES NOTE: I'm not sure WHY they have a loop here.
 # If the test-set accuracy >= TERMINATION_ACCURACY (= 0.40), then
 # training will terminate.
@@ -67,8 +68,10 @@ GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_init.py --iml-d
 for i in $(seq 1 $NUM_GENERATIONS);
 do
 GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_selfplay.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
+#GOPARAMS=$PARAMS_FILE python3 loop_selfplay.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
 
 GOPARAMS=$PARAMS_FILE iml-prof --config $IML_CONFIG python3 loop_train_eval.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
+#GOPARAMS=$PARAMS_FILE python3 loop_train_eval.py --seed $SEED --generation $i --iml-directory $IML_DIRECTORY --iml-skip-rm-traces "$@" 2>&1
 
 
 

@@ -15,6 +15,8 @@ import socket
 import time
 import base64
 import struct
+import logging
+import pprint
 
 HOST = socket.gethostname()
 
@@ -28,9 +30,16 @@ if 'GOPARAMS' in os.environ:
     # minified = jsmin.jsmin(f.read(), quote_chars="'\"`")
     js_str = jsmin.jsmin(f.read())
     _PARAMS = json.loads(js_str)
+    # # logging.info(
+    # print(
+    #   "Reading json minigo config @ GOPARAMS={path}:\n{json}".format(
+    #   path=os.environ['GOPARAMS'],
+    #   json=pprint.pformat(_PARAMS)))
   # with open(os.environ['GOPARAMS']) as f:
   #   _PARAMS = json.load(f)
 else:
+  # # logging.info
+  # print("SKIP Reading json minigo config; GOPARAMS not set")
   pass
   #raise Exception('GOPARAMS not defined. Use GOPARAMS=path/to/json')
 
@@ -107,6 +116,8 @@ _set('TENSORFLOW_LOGGING', False, allow_missing=True)
 # Uninstrumented runs:
 #   $ iml-prof --config uninstrumented
 _set('IML_CONFIG', 'uninstrumented', allow_env=True, allow_missing=True)
+
+_set('RUN_NVPROF', False, allow_env=True, allow_missing=True)
 
 _set('NUM_PARALLEL_SELFPLAY', 4)
 

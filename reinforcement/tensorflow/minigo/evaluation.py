@@ -22,7 +22,7 @@ from gtp_wrapper import MCTSPlayer
 import goparams
 from tqdm import tqdm
 
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 SIMULTANEOUS_LEAVES = 8
 
@@ -53,7 +53,7 @@ def play_match(black_net, white_net, games, readouts, sgf_dir, verbosity):
         # About 15M / 2800 calls traced... so a lot but not enormous.
         print("> game={i}".format(
             i=i))
-        with iml.prof.operation('eval_game'):
+        with rlscope.prof.operation('eval_game'):
             num_move = 0  # The move number of the current game
 
             black.initialize_game()

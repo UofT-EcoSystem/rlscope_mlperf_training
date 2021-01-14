@@ -27,7 +27,7 @@ from mcts import MCTSNode, MAX_DEPTH
 
 import go
 
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 # When to do deterministic move selection.  ~30 moves on a 19x19, ~8 on 9x9
 TEMPERATURE_CUTOFF = int((go.N * go.N) / 12)
@@ -166,7 +166,7 @@ class MCTSPlayerMixin:
         return coords.from_flat(fcoord)
 
     def tree_search(self, num_parallel=None):
-        with iml.prof.operation('mcts_tree_search'):
+        with rlscope.prof.operation('mcts_tree_search'):
             if num_parallel is None:
                 num_parallel = self.num_parallel
             leaves = []
@@ -184,7 +184,7 @@ class MCTSPlayerMixin:
                 leaf.add_virtual_loss(up_to=self.root)
                 leaves.append(leaf)
             if leaves:
-                with iml.prof.operation('expand_leaf'):
+                with rlscope.prof.operation('expand_leaf'):
                     move_probs, values = self.network.run_many(
                         [leaf.position for leaf in leaves])
                 for leaf, move_prob, value in zip(leaves, move_probs, values):

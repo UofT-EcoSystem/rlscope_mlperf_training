@@ -36,7 +36,7 @@ import features
 import preprocessing
 import symmetries
 import go
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import goparams
 
@@ -78,7 +78,7 @@ class DualNetwork():
         else:
             op = 'init_network'
 
-        with iml.prof.operation(op):
+        with rlscope.prof.operation(op):
             with self.sess.graph.as_default():
                 features, labels = get_inference_input()
                 estimator_spec = _model_fn(features, labels,

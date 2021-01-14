@@ -22,7 +22,7 @@ import coords
 import go
 from gtp_wrapper import MCTSPlayer
 
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 SIMULTANEOUS_LEAVES = 8
 
@@ -51,7 +51,7 @@ def play(network, readouts, resign_threshold, verbosity=0):
     prob, val = network.run(first_node.position)
     first_node.incorporate_results(prob, val, first_node)
 
-    with iml.prof.operation('selfplay_match'):
+    with rlscope.prof.operation('selfplay_match'):
         while True:
             start = time.time()
             player.root.inject_noise()

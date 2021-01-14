@@ -42,7 +42,7 @@ import utils
 
 import qmeas
 import goparams
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 # How many positions we should aggregate per 'chunk'.
 EXAMPLES_PER_RECORD = goparams.EXAMPLES_PER_RECORD
@@ -89,7 +89,7 @@ def bootstrap(
         working_dir: 'tf.estimator working directory. If not set, defaults to a random tmp dir'=None,
         model_save_path: 'Where to export the first bootstrapped generation'=None):
     qmeas.start_time('bootstrap')
-    with iml.prof.operation('bootstrap'):
+    with rlscope.prof.operation('bootstrap'):
         if working_dir is None:
             with tempfile.TemporaryDirectory() as working_dir:
                 _ensure_dir_exists(working_dir)
@@ -117,7 +117,7 @@ def train(
 
     with timer("Training"):
         dual_net.train(working_dir, tf_records, generation_num)
-        with iml.prof.operation('export_model'):
+        with rlscope.prof.operation('export_model'):
             dual_net.export_model(working_dir, model_save_path)
     qmeas.stop_time('train')
 
@@ -128,7 +128,7 @@ def validate(
         checkpoint_name: 'Which checkpoint to evaluate (None=latest)'=None,
         validate_name: 'Name for validation set (i.e., selfplay or human)'=None):
     qmeas.start_time('validate')
-    with iml.prof.operation('validate'):
+    with rlscope.prof.operation('validate'):
         tf_records = []
         with timer("Building lists of holdout files"):
             for record_dir in tf_record_dirs:
@@ -152,7 +152,7 @@ def evaluate(
         verbose: 'How verbose the players should be (see selfplay)' = 1):
     qmeas.start_time('evaluate')
     # Too broad.
-    # with iml.prof.operation('evaluate'):
+    # with rlscope.prof.operation('evaluate'):
     _ensure_dir_exists(output_dir)
 
     with timer("Loading weights"):
@@ -198,7 +198,7 @@ def evaluate_evenly(
     # Our fall back will be to try agian.
 
     print("> evaluate_evenly: GOT A TYPE ERROR") # NEVER HAPPENS
-    raise RuntimeError("IML: not sure how to handle this.")
+    raise RuntimeError("RL-Scope: not sure how to handle this.")
     result = (evaluate(black_model, white_model, output_dir, readouts, games, verbose) + (1 - evaluate(white_model, black_model, output_dir, readouts, games, verbose)))/ 2.0
     # should this really happen twice, the world really doesn't
     # want this to be successful... and we will raise the error.
@@ -219,7 +219,7 @@ def selfplay(
         resign_threshold: 'absolute value of threshold to resign at' = 0.95,
         holdout_pct: 'how many games to hold out for validation' = 0.05):
     qmeas.start_time('selfplay')
-    with iml.prof.operation('selfplay'):
+    with rlscope.prof.operation('selfplay'):
         clean_sgf = os.path.join(output_sgf, 'clean')
         full_sgf = os.path.join(output_sgf, 'full')
         _ensure_dir_exists(clean_sgf)
@@ -265,7 +265,7 @@ def selfplay_cache_model(
     qmeas.start_time('selfplay')
     # This operation type is very broad...
     # Leads to some rather big traces.
-    # with iml.prof.operation('selfplay_cache_model'):
+    # with rlscope.prof.operation('selfplay_cache_model'):
     clean_sgf = os.path.join(output_sgf, 'clean')
     full_sgf = os.path.join(output_sgf, 'full')
     _ensure_dir_exists(clean_sgf)
@@ -302,7 +302,7 @@ def gather(
         output_directory: 'where to put collected games'='data/training_chunks/',
         examples_per_record: 'how many tf.examples to gather in each chunk'=EXAMPLES_PER_RECORD):
     qmeas.start_time('gather')
-    with iml.prof.operation('gather'):
+    with rlscope.prof.operation('gather'):
         _ensure_dir_exists(output_directory)
         models = [model_dir.strip('/')
                   for model_dir in sorted(gfile.ListDirectory(input_directory))[-50:]]

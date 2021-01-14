@@ -17,7 +17,7 @@ import evaluation
 from gtp_wrapper import MCTSPlayer
 import sys
 
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import os
 import glob
@@ -73,14 +73,14 @@ def report_for_puzzles(model_path, sgf_files, rounds, tries_per_move=1):
   sum_ratings = 0
   network = dual_net.DualNetwork(model_path)
   # Too broad.
-  # with iml.prof.operation('puzzle'):
+  # with rlscope.prof.operation('puzzle'):
   for attempt in range(rounds):
     log(">> attempt = {attempt}".format(
         attempt=attempt))
     # JAMES TODO: use tqdm to add progress bars (i.e. why's this taking so long..?)
     for filename_i, filename in enumerate(tqdm(sgf_files, 'puzzle_file')):
       # Too broad.
-      with iml.prof.operation('compare_pretrained_moves'):
+      with rlscope.prof.operation('compare_pretrained_moves'):
           log("  >> i = {i}, filename = {f}".format(
               i=filename_i,
               f=filename))
@@ -149,7 +149,7 @@ def predict_move(filename, network, tries_per_move=1, readouts=1000):
   correct = 0
   move_ratings = []
   for position_w_context_i, position_w_context in enumerate(tqdm(replay, 'predict_move_loop')):
-      with iml.prof.operation('test_predict_move'):
+      with rlscope.prof.operation('test_predict_move'):
           if position_w_context.next_move is None:
               continue
           log("    >> predict_position: position_w_context_i = {i}".format(

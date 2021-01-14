@@ -37,7 +37,7 @@ import logging
 
 import goparams
 import predict_games
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import qmeas
 
@@ -224,8 +224,8 @@ def rl_loop(generation):
     This tries to create a realistic way to run the reinforcement learning with
     all default parameters.
     """
-    # IML: catch-all operation
-    with iml.prof.operation('train'):
+    # RL-Scope: catch-all operation
+    with rlscope.prof.operation('train'):
         if goparams.DUMMY_MODEL:
             # monkeypatch the hyperparams so that we get a quickly executing network.
             dual_net.get_default_hyperparams = lambda **kwargs: {
@@ -262,11 +262,11 @@ def rl_loop(generation):
       # pre-trained AlphaGo, or a non-neural network agent.  The "test" performance happens when
       # the model finally plays against an expert human.
       # https://deepmind.com/documents/260/alphazero_preprint.pdf
-      iml.prof.set_phase('evaluate_termination_generation_{g}'.format(
+      rlscope.prof.set_phase('evaluate_termination_generation_{g}'.format(
           g=generation,
       ))
 
-      with iml.prof.operation('evaluate_term_moves'):
+      with rlscope.prof.operation('evaluate_term_moves'):
 
           # JAMES TODO: We'd like to nest 'load_network'/'init_network' inside 'puzzle' here...
           qmeas.start_time('puzzle')
@@ -306,18 +306,18 @@ def rl_loop(generation):
               f.write(repr(result))
               f.write('\n' + str(total_pct) + '\n')
 
-    # JAMES TODO: with iml.prof.use_num_calls(3000):
+    # JAMES TODO: with rlscope.prof.use_num_calls(3000):
     # TODO: appears to be running multiple evaluations? (expect 3 games, saw more.)
     if goparams.EVALUATE_MODELS:
       # JAMES NOTE: Evaluate whether the newly trained candidate model out-performs the model from
       # "last generation" (i.e. win percentage > 55%).
       # If it DOESN'T, we recollect data using the OLD model.
 
-      iml.prof.set_phase('evaluate_candidate_model_generation_{g}'.format(
+      rlscope.prof.set_phase('evaluate_candidate_model_generation_{g}'.format(
           g=generation,
       ))
 
-      with iml.prof.operation('evaluate_candidates'):
+      with rlscope.prof.operation('evaluate_candidates'):
 
           # JAMES NOTE: Use the same number of "readouts" as during self-play.
           # NOTE: "readouts" = # of MCTS nodes that get "expanded" BEFORE choosing a move.
@@ -339,9 +339,9 @@ def main_func():
     parser.add_argument("--generation", type=int, help="Go generation")
     # parser.add_argument("base_dir", type=int, help="generation of self-play/train-eval")
     # parser.add_argument("worker_id", type=int, help="Worker id")
-    iml.add_iml_arguments(parser)
+    rlscope.add_rlscope_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, reports_progress=False)
+    rlscope.handle_rlscope_args(parser, args, reports_progress=False)
 
     phase_name = 'sgd_updates_generation_{g}'.format(
         g=args.generation,
@@ -349,7 +349,7 @@ def main_func():
     process_name = "loop_train_eval_generation_{g}".format(
         g=args.generation,
     )
-    with iml.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
+    with rlscope.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
         #tf.logging.set_verbosity(tf.logging.INFO)
         seed = args.seed
         generation = args.generation

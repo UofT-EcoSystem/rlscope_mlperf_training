@@ -34,7 +34,7 @@ import tensorflow as tf
 import logging
 
 import goparams
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 from loop_selfplay import SelfplayGlobals
 
@@ -256,8 +256,8 @@ def rl_loop():
     all default parameters.
     """
 
-    # IML: catch-all operation
-    with iml.prof.operation('selfplay_worker'):
+    # RL-Scope: catch-all operation
+    with rlscope.prof.operation('selfplay_worker'):
 
         if goparams.DUMMY_MODEL:
             # monkeypatch the hyperparams so that we get a quickly executing network.
@@ -291,16 +291,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # GOPARAMS=params/james.json python3 selfplay_worker.py
     # /mnt/data/james/clone/dnn_tensorflow_cpp/checkpoints/minigo 2
-    # --worker-id 0 loop_selfplay.py --iml-num-traces 10
-    # --iml-start-measuring-call 1 --iml-bench-name NoBenchName
-    # --iml-num-calls 1000
+    # --worker-id 0 loop_selfplay.py --rlscope-num-traces 10
+    # --rlscope-start-measuring-call 1 --rlscope-bench-name NoBenchName
+    # --rlscope-num-calls 1000
     parser.add_argument("--base-dir", help="Iteration of self-play/train-eval")
     parser.add_argument("--seed", type=int, help="Seed")
     parser.add_argument("--generation", type=int, help="Go generation")
     parser.add_argument("--worker-id", type=int, required=True, help="Worker id")
-    iml.add_iml_arguments(parser)
+    rlscope.add_rlscope_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, reports_progress=False)
+    rlscope.handle_rlscope_args(parser, args, reports_progress=False)
 
     init_globals(args.base_dir)
 
@@ -308,7 +308,7 @@ if __name__ == '__main__':
         i=args.worker_id,
         g=args.generation,
     )
-    with iml.prof.profile(process_name=process_name, phase_name=process_name, handle_utilization_sampler=False):
+    with rlscope.prof.profile(process_name=process_name, phase_name=process_name, handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
         seed = args.seed

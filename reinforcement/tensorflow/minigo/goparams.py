@@ -47,10 +47,10 @@ else:
 def _set(name, default, allow_env=False, allow_missing=False):
   val = default
   if allow_env and name in ENV:
-    print("> Using {name}={value} from ENV".format(
-      name=name,
-      value=ENV[name],
-    ))
+    # print("> Using {name}={value} from ENV".format(
+    #   name=name,
+    #   value=ENV[name],
+    # ))
     val = ENV[name]
   elif _PARAMS is not None:
     if name in _PARAMS:
@@ -106,18 +106,20 @@ _set('WINDOW_SIZE', 10000000)
 _set('DUMMY_MODEL', False)
 
 # Whether to enable verbose tensorflow logging.
-# IML NOTE: This was ENABLED by default in minigo, presumably to give more information
+# RL-Scope NOTE: This was ENABLED by default in minigo, presumably to give more information
 # about where time was spent in the TensorFlow API.
 # However, it's very noisy and unhelpful.
 _set('TENSORFLOW_LOGGING', False, allow_missing=True)
 
-# Fully instrumented IML runs:
-#   $ iml-prof --config full
+# Fully instrumented RL-Scope runs:
+#   $ rls-prof --config full
 # Uninstrumented runs:
-#   $ iml-prof --config uninstrumented
-_set('IML_CONFIG', 'uninstrumented', allow_env=True, allow_missing=True)
+#   $ rls-prof --config uninstrumented
+_set('RLSCOPE_CONFIG', 'uninstrumented', allow_env=True, allow_missing=True)
 
 _set('RUN_NVPROF', False, allow_env=True, allow_missing=True)
+_set('RUN_NVPROF_SELFPLAY_WORKERS', 1, allow_env=True, allow_missing=True)
+_set('RUN_TRAIN_EVAL', True, allow_env=True, allow_missing=True)
 
 _set('NUM_PARALLEL_SELFPLAY', 4)
 

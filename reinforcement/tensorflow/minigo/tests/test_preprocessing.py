@@ -21,7 +21,7 @@ import coords
 import preprocessing
 import features
 import go
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import goparams
 

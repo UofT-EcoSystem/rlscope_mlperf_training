@@ -43,7 +43,7 @@ import predict_moves
 
 import qmeas
 
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 SEED = None
 ITERATION = None
@@ -232,17 +232,24 @@ def main_(seed, generation):
       #procs.append(subprocess.Popen(cmd, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE))
       worker_seed = hash(hash(SEED) + ITERATION) + num_workers
       # JAMES TODO: forward set_phase to children.
-      iml_argv, iml_env = iml.iml_argv_and_env(iml.prof)
+      rlscope_argv, rlscope_env = rlscope.rlscope_argv_and_env(rlscope.prof)
       cmdline_args = []
       cmdline_args.extend(["GOPARAMS={GOPARAMS}".format(
           GOPARAMS=os.environ['GOPARAMS'])])
       logging.info("> goparams.RUN_NVPROF = {RUN_NVPROF}".format(RUN_NVPROF=goparams.RUN_NVPROF))
-      if goparams.RUN_NVPROF:
+      if goparams.RUN_NVPROF and i < goparams.RUN_NVPROF_SELFPLAY_WORKERS:
           nvprof_dir = os.path.join(BASE_DIR, "nvprof", "profile.process_%p.nvprof")
           os.makedirs(os.path.dirname(nvprof_dir), exist_ok=True)
-          cmdline_args.extend(["nvprof", "--profile-child-processes", "-o", nvprof_dir])
+          # default=8MB; causes warnings about invalid timestamps from buffer being too small with 16 workers.
+          # Double size until error doesn't happen.
+          cmdline_args.extend([
+              "nvprof",
+              "--profile-child-processes",
+              "-o", nvprof_dir,
+              # "--device-buffer-size", 16,
+          ])
       else:
-          cmdline_args.extend(["iml-prof", "--config", goparams.IML_CONFIG])
+          cmdline_args.extend(["rls-prof", "--config", goparams.RLSCOPE_CONFIG])
       cmdline_args.extend([
           "python3", "selfplay_worker.py",
           "--base-dir", BASE_DIR,
@@ -251,15 +258,15 @@ def main_(seed, generation):
           "--worker-id", i,
          ])
       if goparams.RUN_NVPROF:
-          cmdline_args.extend(["--iml-disable"])
-      cmdline_args.extend(iml_argv)
+          cmdline_args.extend(["--rlscope-disable"])
+      cmdline_args.extend(rlscope_argv)
       cmd = " ".join([str(opt) for opt in cmdline_args])
       print("> CMDLINE @ worker_{i}:\n  $ {cmd}".format(
           i=i, cmd=cmd))
       print(textwrap.indent(pprint.pformat({
-          'env': iml_env,
+          'env': rlscope_env,
       }), prefix="  "))
-      procs.append(subprocess.Popen(cmd, shell=True, env=iml_env))
+      procs.append(subprocess.Popen(cmd, shell=True, env=rlscope_env))
 
     selfplay_dir = os.path.join(SELFPLAY_DIR, model_name)
 
@@ -325,9 +332,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--seed", type=int, help="Seed")
     parser.add_argument("--generation", type=int, help="Go generation")
-    iml.add_iml_arguments(parser)
+    rlscope.add_rlscope_arguments(parser)
     args = parser.parse_args()
-    iml.handle_iml_args(parser, args, reports_progress=False)
+    rlscope.handle_rlscope_args(parser, args, reports_progress=False)
 
     #tf.logging.set_verbosity(tf.logging.INFO)
     qmeas.start(os.path.join(BASE_DIR, 'stats'))
@@ -338,7 +345,7 @@ if __name__ == '__main__':
     process_name = 'loop_selfplay_generation_{g}'.format(
         g=args.generation,
     )
-    with iml.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
+    with rlscope.prof.profile(process_name=process_name, phase_name=phase_name, handle_utilization_sampler=False):
 
         SEED = args.seed
         ITERATION = args.generation

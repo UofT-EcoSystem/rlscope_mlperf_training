@@ -36,7 +36,7 @@ import logging
 
 import goparams
 import predict_moves
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import qmeas
 
@@ -48,7 +48,7 @@ from mlperf_compliance import mlperf_log
 #BASE_DIR = "gs://{}".format(BUCKET_NAME)
 BASE_DIR = goparams.BASE_DIR
 
-# IML NOTE:
+# RL-Scope NOTE:
 #   This does NOT play nice with multiprocessing process forking with multiprocessing.get_context('spawn'),
 #   since it triggers a module import on loop_init which DELETES the entire training directory!
 #   Instead, lets just depend on our caller to clear the directory for us!
@@ -131,15 +131,15 @@ if __name__ == '__main__':
                   "  $ {cmd}"
                   ).format(cmd=' '.join(sys.argv)))
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    iml.add_iml_arguments(parser)
+    rlscope.add_rlscope_arguments(parser)
     args = parser.parse_args()
     logging.info(pprint.pformat(vars(args)))
     logging.info(pprint.pformat({
         'sys.argv': sys.argv,
     }))
-    iml.handle_iml_args(parser, args, reports_progress=False)
+    rlscope.handle_rlscope_args(parser, args, reports_progress=False)
 
-    with iml.prof.profile(process_name='loop_init', phase_name='bootstrap', handle_utilization_sampler=False):
+    with rlscope.prof.profile(process_name='loop_init', phase_name='bootstrap', handle_utilization_sampler=False):
 
         #tf.logging.set_verbosity(tf.logging.INFO)
         qmeas.start(os.path.join(BASE_DIR, 'stats'))

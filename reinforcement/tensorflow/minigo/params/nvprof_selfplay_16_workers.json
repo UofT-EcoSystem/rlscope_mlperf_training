@@ -1,0 +1,48 @@
+{
+//"MAX_GAMES_PER_GENERATION": 2000,
+//  "MAX_GAMES_PER_GENERATION": 32,
+// GOAL: 32 games per thread.
+// 32*16 = 512
+
+// Appears to work...stopped it at around 400 MB.
+//"MAX_GAMES_PER_GENERATION": 32,
+//"NUM_PARALLEL_SELFPLAY": 1,
+
+// Appears to work, ~60% GPU util.  ran until 400MB / 23 games
+//"MAX_GAMES_PER_GENERATION": 128,
+//"NUM_PARALLEL_SELFPLAY": 4,
+
+// Appears to work, ~80-90% GPU util, 5709MB/11019MB. ran until 300MB / 40 games
+//"MAX_GAMES_PER_GENERATION": 256,
+//"NUM_PARALLEL_SELFPLAY": 8,
+
+// 8961MB
+// 10423MB
+// 10991MB => Right when this happened, we get an internal error... GPU memory is getting exhausted!
+//  tensorflow.python.framework.errors_impl.UnknownError: Failed to get convolution algorithm. This is probably because cuDNN failed to initialize, so try looking to see if a warning log message was printed above. [[{{node conv2d/Conv2D}}]]
+"MAX_GAMES_PER_GENERATION": 512,
+"NUM_PARALLEL_SELFPLAY": 16,
+
+//"MAX_GAMES_PER_GENERATION": 64,
+"BASE_DIR" : "$HOME/results/minigo/final/",
+"HOLDOUT_PCT": 0,
+"NUM_MAIN_ITERATIONS": 10000,
+"BOARD_SIZE": 9,
+"SHUFFLE_BUFFER_SIZE": 100000,
+"EXAMPLES_PER_RECORD": 50000,
+"WINDOW_SIZE": 2000000,
+"DUMMY_MODEL": false,
+//"NUM_PARALLEL_SELFPLAY": 16,
+"EVAL_GAMES_PER_SIDE": 50,
+"EVAL_WIN_PCT_FOR_NEW_MODEL": 0.55,
+"EVALUATE_MODELS": false,
+"EVALUATE_PUZZLES": false,
+"RUN_NVPROF": true,
+"NVPROF_SELFPLAY_WORKERS": 1,
+//"RUN_NVPROF": false,
+"RUN_TRAIN_EVAL": false,
+"TRIES_PER_PUZZLE": 5,
+"SP_READOUTS": 200,
+"TERMINATION_ACCURACY": 0.40,
+"NUM_GENERATIONS": 1
+}

@@ -22,7 +22,7 @@ import coords
 import features as features_lib
 import go
 import sgf_wrapper
-import iml_profiler.api as iml
+import rlscope.api as rlscope
 
 import goparams
 

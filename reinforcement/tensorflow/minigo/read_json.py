@@ -5,6 +5,8 @@ import json
 import sys
 from os import environ as ENV
 
+import goparams
+
 def main():
     parser = argparse.ArgumentParser("Read an attribute from a json file.")
     parser.add_argument('json_path',
@@ -34,7 +36,11 @@ def main():
         value = ENV[args.attr]
     elif args.attr not in js:
         if args.default is not None:
+            # Get default from command-line.
             value = args.default
+        elif hasattr(goparams, args.attr):
+            # Get default from goparams.
+            value = getattr(goparams, args.attr)
         else:
             print("ERROR: couldn't find {attr} in {path}".format(
                 attr=args.attr, path=args.json_path))
